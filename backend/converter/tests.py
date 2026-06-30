@@ -4,6 +4,7 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 from PIL import Image
 from .services import convert_images_to_pdf, convert_pdf_to_images
+from unittest.mock import patch, PropertyMock
 
 class ImagesToPdfAPITestCase(APITestCase):
 
@@ -119,6 +120,37 @@ class ImagesToPdfAPITestCase(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('error', response.data)
 
+    def test_images_to_pdf_files_too_large(self):
+        """Тест ошибки 400, если суммарный вес изображений превышает 50 МБ"""
+        url = reverse('images_to_pdf')
+        img1 = self.generate_test_image('test1.jpg', ext='JPEG')
+        img2 = self.generate_test_image('test2.jpg', ext='JPEG')
+        data = {'images': [img1, img2]}
+
+        # Подменяем размер каждого файла на 26 МБ (в сумме 52 МБ)
+        with patch('django.core.files.uploadedfile.UploadedFile.size', new_callable=PropertyMock) as mock_size:
+            mock_size.return_value = 26 * 1024 * 1024
+            response = self.client.post(url, data, format='multipart')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data, {"error": "Превышен суммарный лимит размера файлов (макс. 50 МБ)"})
+
+    def test_pdf_to_images_file_too_large(self):
+        """Тест ошибки 400, если PDF файл превышает лимит 50 МБ"""
+        url = reverse('pdf_to_images')
+        img = self.generate_test_image('source.jpg', ext='JPEG')
+        valid_pdf_buffer = convert_images_to_pdf([img])
+        valid_pdf_buffer.name = 'test.pdf'
+        data = {'pdf': valid_pdf_buffer}
+
+        # Имитируем файл размером 51 МБ
+        with patch('django.core.files.uploadedfile.UploadedFile.size', new_callable=PropertyMock) as mock_size:
+            mock_size.return_value = 51 * 1024 * 1024
+            response = self.client.post(url, data, format='multipart')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data, {"error": "Размер файла превышает лимит 50 МБ"})
+
 
 class GenericConvertAPITestCase(APITestCase):
     def setUp(self):
@@ -158,3 +190,16 @@ class GenericConvertAPITestCase(APITestCase):
         """Тест ошибки при отсутствии файла или target"""
         response = self.client.post(self.url, {}, format='multipart')
         self.assertEqual(response.status_code, 400)
+
+    def test_generic_convert_file_too_large(self):
+        """Тест ошибки 400, если одиночный файл в generic-конвертере превышает 50 МБ"""
+        img = self.generate_test_image(ext='PNG')
+        data = {'file': img, 'target': 'webp'}
+
+        # Имитируем файл размером 51 МБ
+        with patch('django.core.files.uploadedfile.UploadedFile.size', new_callable=PropertyMock) as mock_size:
+            mock_size.return_value = 51 * 1024 * 1024
+            response = self.client.post(self.url, data, format='multipart')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data, {"error": "Размер файла превышает лимит 50 МБ"})

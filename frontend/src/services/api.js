@@ -73,18 +73,24 @@ export async function convertImage(file, target) {
   return { blob, filename };
 }
 
-/** Одно или несколько изображений: один файл — напрямую, несколько — ZIP */
+/** Одно или несколько изображений: один файл — напрямую, несколько — ZIP (Параллельная обработка) */
 export async function convertImages(files, target) {
   if (files.length === 1) {
     return convertImage(files[0], target);
   }
 
+  // 1. Создаем массив промисов и запускаем их параллельно
+  const conversionPromises = files.map((file) => convertImage(file, target));
+
+  // 2. Ждем завершения всех запросов
+  const results = await Promise.all(conversionPromises);
+
   const zip = new JSZip();
 
-  for (const file of files) {
-    const { blob, filename } = await convertImage(file, target);
+  // 3. Синхронно добавляем полученные данные в ZIP-архив
+  results.forEach(({ blob, filename }) => {
     zip.file(filename, blob);
-  }
+  });
 
   const blob = await zip.generateAsync({ type: 'blob' });
   const ext = target === 'jpeg' ? 'jpg' : target;

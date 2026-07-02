@@ -1,4 +1,4 @@
-import os
+import os, time
 from celery import shared_task
 from django.conf import settings
 from . import services  # Исправлен пробел
@@ -56,3 +56,29 @@ def generic_convert_task(self, input_path: str, output_filename: str, target_for
         return {"status": "FAILURE", "error": str(e)}
     finally:
         cleanup_files([input_path])
+
+
+@shared_task
+def clear_old_tmp_files_task():
+    """Периодическая задача для очистки файлов старше 1 часа."""
+    if not os.path.exists(TMP_DIR):
+        return "Directory does not exist"
+
+    now = time.time()
+    cutoff = now - 3600  # 1 час назад
+    deleted_count = 0
+
+    for filename in os.listdir(TMP_DIR):
+        file_path = os.path.join(TMP_DIR, filename)
+
+        # Проверяем, что это файл, а не системная папка (например, .gitignore)
+        if os.path.isfile(file_path):
+            file_mtime = os.path.getmtime(file_path)
+            if file_mtime < cutoff:
+                try:
+                    os.remove(file_path)
+                    deleted_count += 1
+                except Exception:
+                    pass
+
+    return f"Cleaned up {deleted_count} files."

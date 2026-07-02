@@ -160,3 +160,12 @@ if platform.system() == 'Windows':
     POPPLER_PATH = r'E:\Study\App\poppler-26.02.0\Library\bin'
 else:
     POPPLER_PATH = None
+
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    'clear-tmp-files-every-15-mins': {
+        'task': 'converter.tasks.clear_old_tmp_files_task',  # Укажи точный путь, если приложение называется иначе, например, 'api.tasks...'
+        'schedule': crontab(minute='*/15'),  # Каждые 15 минут
+    },
+}

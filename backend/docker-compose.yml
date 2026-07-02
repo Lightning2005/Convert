@@ -38,6 +38,18 @@ services:
     depends_on:
       - redis
 
+  celery_beat:
+    build: .
+    container_name: konvert_beat
+    command: celery -A core beat --loglevel=info
+    volumes:
+      - .:/app
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+
 # Общий именованный volume для безопасного обмена файлами между web и celery
 volumes:
   tmp_files:

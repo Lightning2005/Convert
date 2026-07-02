@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:alpine
+    container_name: konvert_redis
+    ports:
+      - "6379:6379"
+
+  web:
+    build: .
+    container_name: konvert_web
+    # Автоматически применяем миграции при старте и запускаем dev-сервер
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - tmp_files:/app/tmp_files
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  celery_worker:
+    build: .
+    container_name: konvert_celery
+    command: celery -A core worker --loglevel=info
+    volumes:
+      - .:/app
+      - tmp_files:/app/tmp_files
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+
+# Общий именованный volume для безопасного обмена файлами между web и celery
+volumes:
+  tmp_files:

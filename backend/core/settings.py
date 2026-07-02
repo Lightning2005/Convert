@@ -131,10 +131,32 @@ else:
         "https://your-frontend-domain.com",
     ]
 
-# Динамическая настройка пути к Poppler в зависимости от ОС
-if platform.system() == "Windows":
-    # Твой локальный путь на Windows
-    POPPLER_PATH = r"E:\Study\App\poppler-26.02.0\Library\bin"
+import os
+import platform
+
+# ==============================================================================
+# НАСТРОЙКИ CELERY & REDIS
+# ==============================================================================
+# Если переменные окружения не заданы (запуск вне Docker на Windows), откатываемся на localhost
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://127.0.0.1:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://127.0.0.1:6379/0')
+
+# Настройки сериализации данных
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+
+# Максимальный лимит на объем загружаемых файлов в Django — 50 МБ (50 * 1024 * 1024)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800
+FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800
+
+# ==============================================================================
+# СПЕЦИФИКА POPPLER (ДЛЯ PDF2IMAGE)
+# ==============================================================================
+# В Linux (Docker) пакет poppler-utils установлен глобально, путь передавать не нужно.
+# Для Windows требуется скачать бинарники и явно указать к ним путь в коде.
+if platform.system() == 'Windows':
+    # Укажи здесь свой реальный локальный путь к распакованному poppler на Windows
+    POPPLER_PATH = r'E:\Study\App\poppler-26.02.0\Library\bin'
 else:
-    # На Linux (VPS) poppler ставится глобально через apt, путь передавать не нужно
     POPPLER_PATH = None

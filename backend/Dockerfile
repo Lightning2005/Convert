@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # Запрещаем Python писать файлы кэша .pyc и включаем буферизацию логов
 ENV PYTHONDONTWRITEBYTECODE=1

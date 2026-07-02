@@ -1,1 +1,41 @@
 @import "tailwindcss";
+
+@theme {
+  /* Цветовая палитра */
+  --color-primary: #2563EB;
+  --color-primary-hover: #1D4ED8;
+  --color-primary-active: #1E3A8A;
+  --color-primary-light: #EFF6FF;
+
+  --color-main: #FFFFFF;
+  --color-surface-muted: #F9FAFB;
+  --color-hover-2: #BFDBFE;
+
+  --color-text-primary: #1F2937;
+  --color-text-secondary: #4B5563;
+  --color-ui-border: #E5E7EB;
+
+  --color-disabled: #E5E7EB;
+  --color-disabled-text: #9CA3AF;
+  --color-progress-track: #E5E7EB;
+
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+
+  /* Типографика */
+  --text-h1: 30px;
+  --text-h1--line-height: 36px;
+
+  --text-h2: 20px;
+  --text-h2--line-height: 26px;
+
+  --text-h3: 16px;
+  --text-h3--line-height: 22px;
+
+  --text-body: 14px;
+  --text-body--line-height: 20px;
+
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
+}

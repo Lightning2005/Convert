@@ -1,23 +1,27 @@
-import io
+import os
 import zipfile
+import io
 from PIL import Image, ImageOps
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
-from pdf2image import convert_from_bytes
-from django.conf import settings
+from pdf2image import convert_from_path
 
 
-# 1. Твоя существующая функция для работы с PDF
-def convert_images_to_pdf(uploaded_images):
-    pdf_buffer = io.BytesIO()
+# 1. Сборка нескольких изображений в один PDF
+def convert_images_to_pdf(image_paths: list, output_path: str):
     page_width, page_height = A4
-    pdf_canvas = canvas.Canvas(pdf_buffer, pagesize=A4)
+    # ReportLab умеет писать напрямую в файл по его пути
+    pdf_canvas = canvas.Canvas(output_path, pagesize=A4)
 
-    for uploaded_file in uploaded_images:
-        img = Image.open(uploaded_file)
+    for path in image_paths:
+        if not os.path.exists(path):
+            continue
+
+        img = Image.open(path)
         img = ImageOps.exif_transpose(img)
 
+        # Обработка прозрачности
         if img.mode in ('RGBA', 'LA'):
             background = Image.new('RGB', img.size, (255, 255, 255))
             background.paste(img, mask=img.split()[3])
@@ -42,12 +46,10 @@ def convert_images_to_pdf(uploaded_images):
         pdf_canvas.showPage()
 
     pdf_canvas.save()
-    pdf_buffer.seek(0)
-    return pdf_buffer
 
 
-# 2. Функция для PDF -> Images (JPG или PNG)
-def convert_pdf_to_images(uploaded_pdf, target_format='jpg'):
+# 2. Нарезка PDF на отдельные изображения (в ZIP)
+def convert_pdf_to_images(pdf_path: str, output_path: str, target_format='jpg', poppler_path=None):
     target_format = target_format.lower()
 
     if target_format in ('jpg', 'jpeg'):
@@ -59,28 +61,25 @@ def convert_pdf_to_images(uploaded_pdf, target_format='jpg'):
     else:
         raise ValueError(f"Формат {target_format} не поддерживается для PDF.")
 
-    pdf_bytes = uploaded_pdf.read()
-    pages = convert_from_bytes(pdf_bytes, poppler_path=settings.POPPLER_PATH)
-    zip_buffer = io.BytesIO()
+    # Используем convert_from_path вместо convert_from_bytes для экономии RAM
+    pages = convert_from_path(pdf_path, poppler_path=poppler_path)
 
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+    # Пишем ZIP сразу на диск
+    with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
         for index, page in enumerate(pages):
+            # Временный буфер нужен только для сжатия ОДНОЙ страницы, а не всего архива
             img_buffer = io.BytesIO()
             if pil_format == 'JPEG':
                 page.save(img_buffer, format='JPEG', quality=90)
             else:
                 page.save(img_buffer, format='PNG')
-            img_buffer.seek(0)
-            zip_file.writestr(f"page_{index + 1}.{file_ext}", img_buffer.read())
 
-    zip_buffer.seek(0)
-    return zip_buffer
+            zip_file.writestr(f"page_{index + 1}.{file_ext}", img_buffer.getvalue())
 
 
-# 3. Универсальная функция (для обычных конвертаций)
-def convert_image(uploaded_file, target_format):
+# 3. Универсальная конвертация одиночного изображения
+def convert_image(input_path: str, output_path: str, target_format: str):
     target_format = target_format.lower()
-    # 1. Валидация поддерживаемых форматов
     supported_formats = {
         'jpg': 'JPEG',
         'jpeg': 'JPEG',
@@ -93,10 +92,9 @@ def convert_image(uploaded_file, target_format):
     if target_format not in supported_formats:
         raise ValueError(f"Формат {target_format} не поддерживается.")
 
-    img = Image.open(uploaded_file)
+    img = Image.open(input_path)
     img = ImageOps.exif_transpose(img)
 
-    # 2. Обработка прозрачности (для JPEG)
     if target_format in ['jpg', 'jpeg'] and img.mode in ('RGBA', 'LA'):
         background = Image.new('RGB', img.size, (255, 255, 255))
         background.paste(img, mask=img.split()[3])
@@ -104,9 +102,5 @@ def convert_image(uploaded_file, target_format):
     elif img.mode != 'RGB' and target_format in ['jpg', 'jpeg']:
         img = img.convert('RGB')
 
-    output_buffer = io.BytesIO()
-    # 3. Сохраняем с использованием маппинга
-    img.save(output_buffer, format=supported_formats[target_format])
-    output_buffer.seek(0)
-
-    return output_buffer
+    # Сохраняем результат напрямую по выходному пути на диске
+    img.save(output_path, format=supported_formats[target_format])

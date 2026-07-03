@@ -32,3 +32,4 @@ frontend/yarn-error.log*
 # OS tools
 .DS_Store
 Thumbs.db
+celerybeat-schedule

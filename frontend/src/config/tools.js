@@ -178,6 +178,18 @@ export const SUPPORTED_TOOLS = {
     category: 'image',
     description: 'Генерируйте четкие иконки ICO из PNG с поддержкой прозрачности.',
   },
+  'ico-to-png': {
+    source: 'ico',
+    target: 'png',
+    sourceName: 'ICO',
+    targetName: 'PNG',
+    accept: '.ico',
+    maxFiles: 10,
+    icon: '🎨',
+    category: 'image',
+    description: 'Конвертируйте иконки ICO в формат PNG с сохранением прозрачности.',
+    },
+
   'heic-to-jpg': {
     source: 'heic',
     target: 'jpg',

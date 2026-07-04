@@ -14,7 +14,10 @@ from .strategies import ConverterFactory
 from .tasks import images_to_pdf_task, pdf_to_images_task, generic_convert_task
 
 MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB
-SUPPORTED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.tiff', '.ico'}
+SUPPORTED_IMAGE_EXTENSIONS = {
+    '.jpg', '.jpeg', '.png', '.webp',
+    '.tiff', '.tif', '.ico', '.bmp', '.heic'
+}
 
 # Динамический путь для совместимости Linux (Docker) / Windows
 TMP_DIR = os.path.join(settings.BASE_DIR, 'tmp_files')

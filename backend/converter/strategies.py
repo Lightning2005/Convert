@@ -7,6 +7,10 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from pdf2image import convert_from_path
+from pillow_heif import register_heif_opener
+
+# Регистрация плагина для поддержки HEIC
+register_heif_opener()
 
 
 class BaseConverter(ABC):
@@ -75,6 +79,9 @@ class PdfToImagesConverter(BaseConverter):
         elif target_format == 'png':
             pil_format = 'PNG'
             file_ext = 'png'
+        elif target_format == 'webp':
+            pil_format = 'WEBP'
+            file_ext = 'webp'
         else:
             raise ValueError(f"Формат {target_format} не поддерживается для PDF.")
 
@@ -85,6 +92,8 @@ class PdfToImagesConverter(BaseConverter):
                 img_buffer = io.BytesIO()
                 if pil_format == 'JPEG':
                     page.save(img_buffer, format='JPEG', quality=90)
+                elif pil_format == 'WEBP':
+                    page.save(img_buffer, format='WEBP')
                 else:
                     page.save(img_buffer, format='PNG')
 
@@ -101,6 +110,8 @@ class GenericImageConverter(BaseConverter):
         'webp': 'WEBP',
         'tiff': 'TIFF',
         'ico': 'ICO',
+        'bmp': 'BMP',
+        'heic': 'HEIF',
     }
 
     def convert(self, input_path: str, output_path: str, **kwargs) -> None:

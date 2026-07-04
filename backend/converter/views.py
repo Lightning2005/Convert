@@ -9,6 +9,7 @@ from django.conf import settings  # Добавили импорт настрое
 from django.http import FileResponse, Http404
 from django.urls import reverse
 from celery.result import AsyncResult
+from .strategies import ConverterFactory
 
 from .tasks import images_to_pdf_task, pdf_to_images_task, generic_convert_task
 
@@ -102,10 +103,12 @@ class GenericConvertView(APIView):
     def post(self, request, *args, **kwargs):
         uploaded_file = request.FILES.get('file')
         target_format = request.data.get('target', '').lower()
-        supported_targets = {'jpg', 'jpeg', 'png', 'webp', 'tiff', 'ico'}
 
         if not uploaded_file:
             return Response({"error": "Файл не передан"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Динамическое получение поддерживаемых форматов из фабрики стратегий
+        supported_targets = ConverterFactory.get_supported_generic_targets()
 
         if target_format not in supported_targets:
             return Response({"error": "Целевой формат не поддерживается"}, status=status.HTTP_400_BAD_REQUEST)

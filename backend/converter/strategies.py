@@ -1,10 +1,11 @@
 import os
 import io
 import zipfile
+import struct
 from abc import ABC, abstractmethod
 from PIL import Image, ImageOps
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from pdf2image import convert_from_path
 from pillow_heif import register_heif_opener
@@ -13,23 +14,36 @@ from pillow_heif import register_heif_opener
 register_heif_opener()
 
 
+def _save_as_ico(img: Image.Image, output_path: str) -> None:
+    """
+    ICO: Сохранение в один слой 256x256.
+    Гарантирует идеальное отображение в просмотрщике Windows
+    и корректное масштабирование самой системой.
+    """
+    # Приводим к RGBA для поддержки прозрачности
+    rgba_img = img.convert('RGBA')
+
+    # Делаем чистый квадрат 256x256 с максимальным качеством сглаживания
+    resized = rgba_img.resize((256, 256), Image.Resampling.LANCZOS)
+
+    # Сохраняем средствами Pillow как одиночную иконку
+    resized.save(output_path, format="ICO", sizes=[(256, 256)])
+
+
 class BaseConverter(ABC):
     """Базовый интерфейс для всех стратегий конвертации."""
 
     @abstractmethod
     def convert(self, input_path, output_path, **kwargs) -> None:
-        """
-        Выполняет конвертацию файла(ов).
-        input_path может быть строкой (путь к файлу) или списком строк.
-        """
         pass
 
 
 class ImagesToPdfConverter(BaseConverter):
-    """Стратегия объединения изображений в PDF А4 с сохранением пропорций и центрированием."""
+    """Стратегия объединения изображений в PDF: все страницы portrait A4."""
 
     def convert(self, input_path: list, output_path: str, **kwargs) -> None:
         pdf_canvas = canvas.Canvas(output_path)
+        page_width, page_height = A4
 
         for path in input_path:
             if not os.path.exists(path):
@@ -38,7 +52,6 @@ class ImagesToPdfConverter(BaseConverter):
             img = Image.open(path)
             img = ImageOps.exif_transpose(img)
 
-            # Обработка прозрачности
             if img.mode in ('RGBA', 'LA'):
                 background = Image.new('RGB', img.size, (255, 255, 255))
                 background.paste(img, mask=img.split()[-1])
@@ -47,23 +60,12 @@ class ImagesToPdfConverter(BaseConverter):
                 img = img.convert('RGB')
 
             img_w, img_h = img.size
-
-            # 1. Определяем ориентацию страницы А4 по пропорциям исходника
-            if img_w > img_h:
-                page_width, page_height = landscape(A4)
-            else:
-                page_width, page_height = A4
-
             pdf_canvas.setPageSize((page_width, page_height))
 
-            # 2. Расчет масштабирования без искусственных отступов (margin = 0)
-            # Картинка займет максимум пространства по одной из осей
             ratio = min(page_width / img_w, page_height / img_h)
             new_w = img_w * ratio
             new_h = img_h * ratio
 
-            # 3. Центрируем картинку на листе А4
-            # Белые полосы останутся только там, где пропорции не совпали с А4
             x = (page_width - new_w) / 2
             y = (page_height - new_h) / 2
 
@@ -137,7 +139,10 @@ class GenericImageConverter(BaseConverter):
         elif img.mode != 'RGB' and target_format in ['jpg', 'jpeg']:
             img = img.convert('RGB')
 
-        img.save(output_path, format=self.SUPPORTED_FORMATS[target_format])
+        if target_format == 'ico':
+            _save_as_ico(img, output_path)
+        else:
+            img.save(output_path, format=self.SUPPORTED_FORMATS[target_format])
 
 
 class ConverterFactory:
@@ -151,7 +156,6 @@ class ConverterFactory:
 
     @classmethod
     def get_by_action(cls, action_name: str) -> BaseConverter:
-        """Получение инстанса стратегии по её строковому идентификатору."""
         strategy_class = cls._registry.get(action_name)
         if not strategy_class:
             raise ValueError(f"Неизвестный тип конвертации: {action_name}")
@@ -159,5 +163,4 @@ class ConverterFactory:
 
     @classmethod
     def get_supported_generic_targets(cls) -> set:
-        """Возвращает форматы, поддерживаемые универсальным конвертером изображений."""
         return set(GenericImageConverter.SUPPORTED_FORMATS.keys())

@@ -1,5 +1,6 @@
 import io
 import os
+import re
 import zipfile
 from unittest.mock import PropertyMock, patch
 from urllib.parse import urlparse
@@ -105,6 +106,28 @@ class ImagesToPdfAPITestCase(ConverterAPITestBase):
 
         self.assertTrue(len(pdf_content) > 0)
         self.assertEqual(pdf_content[:4], b'%PDF')
+
+    def test_pdf_all_pages_use_portrait_a4(self):
+        """Portrait и landscape изображения → все страницы portrait A4."""
+        url = reverse('images_to_pdf')
+        data = {
+            'images': [
+                self.make_upload('portrait.jpg', 'JPEG', size=(100, 200)),
+                self.make_upload('landscape.png', 'PNG', size=(200, 100)),
+            ]
+        }
+
+        download_response = self.submit_and_download(url, data)
+        pdf_content = b''.join(download_response.streaming_content)
+
+        mediaboxes = re.findall(rb'/MediaBox\s*\[([^\]]+)\]', pdf_content)
+        self.assertEqual(len(mediaboxes), 2)
+
+        for box in mediaboxes:
+            parts = [float(value) for value in box.decode().split()]
+            width = parts[2] - parts[0]
+            height = parts[3] - parts[1]
+            self.assertGreater(height, width, 'Каждая страница должна быть portrait A4')
 
     def test_conversion_fails_without_images(self):
         url = reverse('images_to_pdf')
@@ -236,8 +259,27 @@ class GenericConvertAPITestCase(ConverterAPITestBase):
         self.assertEqual(content[:2], b'\xff\xd8')
 
     def test_convert_jpg_to_ico(self):
+        """Проверяет, что иконка успешно создается и имеет правильный размер слоя."""
         content = self._convert_and_get_content('JPG', 'ico', 'test.jpg')
         self.assertTrue(len(content) > 0)
+
+        with Image.open(io.BytesIO(content)) as ico:
+            # Pillow считывает размер первого (и в нашем случае единственного) слоя
+            self.assertEqual(ico.size, (256, 256))
+
+    def test_ico_file_is_valid_single_frame(self):
+        """Проверяет структуру ICO: заголовок и наличие ровно 1 кадра."""
+        content = self._convert_and_get_content('PNG', 'ico', 'test.png')
+
+        # Минимальная валидация сигнатуры ICO (0, 1, count)
+        # Первые 2 байта: Reserved (0x0000)
+        self.assertEqual(content[0:2], b'\x00\x00')
+        # Следующие 2 байта: Type (0x0001 для ICO)
+        self.assertEqual(content[2:4], b'\x01\x00')
+
+        # Следующие 2 байта: Количество изображений в контейнере (должно быть 1)
+        count = int.from_bytes(content[4:6], 'little')
+        self.assertEqual(count, 1)
 
     def test_invalid_target_format(self):
         data = {

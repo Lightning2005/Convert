@@ -4,7 +4,7 @@ import zipfile
 from abc import ABC, abstractmethod
 from PIL import Image, ImageOps
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.utils import ImageReader
 from pdf2image import convert_from_path
 from pillow_heif import register_heif_opener
@@ -26,11 +26,10 @@ class BaseConverter(ABC):
 
 
 class ImagesToPdfConverter(BaseConverter):
-    """Стратегия объединения нескольких изображений в один PDF-документ."""
+    """Стратегия объединения изображений в PDF А4 с сохранением пропорций и центрированием."""
 
     def convert(self, input_path: list, output_path: str, **kwargs) -> None:
-        page_width, page_height = A4
-        pdf_canvas = canvas.Canvas(output_path, pagesize=A4)
+        pdf_canvas = canvas.Canvas(output_path)
 
         for path in input_path:
             if not os.path.exists(path):
@@ -47,15 +46,24 @@ class ImagesToPdfConverter(BaseConverter):
             elif img.mode != 'RGB':
                 img = img.convert('RGB')
 
-            margin = 7
-            usable_w = page_width - (2 * margin)
-            usable_h = page_height - (2 * margin)
-
             img_w, img_h = img.size
-            ratio = min(usable_w / img_w, usable_h / img_h)
+
+            # 1. Определяем ориентацию страницы А4 по пропорциям исходника
+            if img_w > img_h:
+                page_width, page_height = landscape(A4)
+            else:
+                page_width, page_height = A4
+
+            pdf_canvas.setPageSize((page_width, page_height))
+
+            # 2. Расчет масштабирования без искусственных отступов (margin = 0)
+            # Картинка займет максимум пространства по одной из осей
+            ratio = min(page_width / img_w, page_height / img_h)
             new_w = img_w * ratio
             new_h = img_h * ratio
 
+            # 3. Центрируем картинку на листе А4
+            # Белые полосы останутся только там, где пропорции не совпали с А4
             x = (page_width - new_w) / 2
             y = (page_height - new_h) / 2
 

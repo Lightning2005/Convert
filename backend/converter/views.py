@@ -86,8 +86,8 @@ class PdfToImagesView(APIView):
             return Response({"error": "Размер файла превышает лимит 50 МБ"}, status=status.HTTP_400_BAD_REQUEST)
 
         target_format = request.data.get('target', 'jpg').lower()
-        if target_format not in ('jpg', 'jpeg', 'png'):
-            return Response({"error": "Поддерживаются только форматы JPG и PNG"}, status=status.HTTP_400_BAD_REQUEST)
+        if target_format not in ('jpg', 'jpeg', 'png', 'webp'):
+            return Response({"error": "Поддерживаются только форматы JPG, PNG, WEBP"}, status=status.HTTP_400_BAD_REQUEST)
 
         pdf_path = save_uploaded_file(uploaded_pdf)
         output_filename = f"converted_pages_{uuid.uuid4()}.zip"

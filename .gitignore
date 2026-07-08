@@ -16,6 +16,7 @@ venv/
 backend/db.sqlite3
 backend/media/
 backend/staticfiles/
+backend/tmp_files/
 
 # Node / React (Frontend)
 frontend/node_modules/

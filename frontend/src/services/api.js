@@ -1,6 +1,8 @@
 import JSZip from 'jszip';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+const POLL_INTERVAL_MS = 1500;
+const POLL_MAX_ATTEMPTS = 60; // ~90 секунд ожидания
 
 /**
  * Изменено: теперь функция возвращает JSON с task_id, а не Blob файла
@@ -19,14 +21,11 @@ async function postFormData(endpoint, formData) {
   return response.json();
 }
 
-/**
- * Функция опроса статуса задачи (Polling)
- */
-async function pollTaskStatus(taskId) {
+/** Опрос статуса Celery-задачи с ограничением по времени */
+async function pollTaskStatus(taskId, maxAttempts = POLL_MAX_ATTEMPTS) {
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  while (true) {
-    // ВНИМАНИЕ: Проверь путь '/api/tasks/' в своем urls.py бэкенда!
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const response = await fetch(`${API_BASE_URL}/api/status/${taskId}/`);
 
     if (!response.ok) {
@@ -36,7 +35,6 @@ async function pollTaskStatus(taskId) {
     const data = await response.json();
 
     if (data.status === 'SUCCESS') {
-      // Задача завершена, скачиваем реальный бинарный файл по ссылке от бэкенда
       const fileResponse = await fetch(data.download_url);
       if (!fileResponse.ok) throw new Error('Не удалось скачать готовый файл.');
       return await fileResponse.blob();
@@ -46,9 +44,10 @@ async function pollTaskStatus(taskId) {
       throw new Error(data.error || 'Ошибка при обработке файла в Celery.');
     }
 
-    // Если статус PENDING или STARTED — ждем 1.5 секунды и повторяем запрос
-    await delay(1500);
+    await delay(POLL_INTERVAL_MS);
   }
+
+  throw new Error('Превышено время ожидания. Попробуйте позже или уменьшите количество файлов.');
 }
 
 export function swapExtension(filename, newExt) {

@@ -1,15 +1,41 @@
 import io
+import os
 import zipfile
-from django.urls import reverse
-from rest_framework.test import APITestCase
-from PIL import Image
-from .services import convert_images_to_pdf, convert_pdf_to_images
-from unittest.mock import patch, PropertyMock
+from unittest.mock import PropertyMock, patch
+from urllib.parse import urlparse
 
-class ImagesToPdfAPITestCase(APITestCase):
+from django.conf import settings
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
+from django.urls import reverse
+from PIL import Image
+from rest_framework.test import APITestCase
+
+from . import services
+
+TMP_DIR = os.path.join(settings.BASE_DIR, 'tmp_files')
+
+# Celery выполняет задачи синхронно в тестах, без Redis
+CELERY_TEST_SETTINGS = {
+    'CELERY_TASK_ALWAYS_EAGER': True,
+    'CELERY_TASK_EAGER_PROPAGATES': True,
+    'CELERY_TASK_STORE_EAGER_RESULT': True,
+    'CELERY_RESULT_BACKEND': 'cache+memory://',
+    'CACHES': {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        }
+    },
+}
+
+
+class ConverterAPITestBase(APITestCase):
+    """Базовый класс с хелперами для async API (202 → status → download)."""
+
+    def setUp(self):
+        os.makedirs(TMP_DIR, exist_ok=True)
 
     def generate_test_image(self, filename, ext='JPEG', size=(100, 100), color='blue'):
-        """Вспомогательный метод для генерации картинки в памяти"""
         file_buf = io.BytesIO()
         image = Image.new('RGB', size, color=color)
         image.save(file_buf, format=ext)
@@ -17,189 +43,250 @@ class ImagesToPdfAPITestCase(APITestCase):
         file_buf.seek(0)
         return file_buf
 
+    def make_upload(self, filename, ext='JPEG', **kwargs):
+        buffer = self.generate_test_image(filename, ext=ext, **kwargs)
+        mime_map = {
+            'JPEG': 'image/jpeg',
+            'PNG': 'image/png',
+            'WEBP': 'image/webp',
+            'TIFF': 'image/tiff',
+        }
+        return SimpleUploadedFile(
+            filename,
+            buffer.read(),
+            content_type=mime_map.get(ext, 'application/octet-stream'),
+        )
+
+    def create_test_pdf_upload(self):
+        img_path = os.path.join(TMP_DIR, f'test_page_{os.getpid()}.jpg')
+        pdf_path = os.path.join(TMP_DIR, f'test_source_{os.getpid()}.pdf')
+
+        img = Image.new('RGB', (100, 100), color='red')
+        img.save(img_path, format='JPEG')
+        services.convert_images_to_pdf([img_path], pdf_path)
+
+        with open(pdf_path, 'rb') as pdf_file:
+            return SimpleUploadedFile('test.pdf', pdf_file.read(), content_type='application/pdf')
+
+    def submit_and_download(self, url, data):
+        """POST → 202 + task_id → status SUCCESS → скачивание файла."""
+        response = self.client.post(url, data, format='multipart')
+        self.assertEqual(response.status_code, 202, response.data)
+        self.assertIn('task_id', response.data)
+
+        status_url = reverse('task_status', kwargs={'task_id': response.data['task_id']})
+        status_response = self.client.get(status_url)
+
+        self.assertEqual(status_response.status_code, 200)
+        self.assertEqual(status_response.data['status'], 'SUCCESS', status_response.data)
+        self.assertIn('download_url', status_response.data)
+
+        download_path = urlparse(status_response.data['download_url']).path
+        download_response = self.client.get(download_path)
+
+        self.assertEqual(download_response.status_code, 200)
+        return download_response
+
+
+@override_settings(**CELERY_TEST_SETTINGS)
+class ImagesToPdfAPITestCase(ConverterAPITestBase):
+
     def test_successful_images_to_pdf_conversion(self):
-        """Тест успешной конвертации нескольких изображений в один PDF"""
-        # 1. Берем наш именованный URL-адрес
         url = reverse('images_to_pdf')
-
-        # 2. Генерируем две тестовые картинки (JPG и PNG)
-        img1 = self.generate_test_image('test1.jpg', ext='JPEG', color='red')
-        img2 = self.generate_test_image('test2.png', ext='PNG', color='green')
-
-        # 3. Формируем multipart/form-data тело запроса
         data = {
-            'images': [img1, img2]
+            'images': [
+                self.make_upload('test1.jpg', 'JPEG'),
+                self.make_upload('test2.png', 'PNG'),
+            ]
         }
 
-        # 4. Отправляем POST-запрос на эндпоинт
-        response = self.client.post(url, data, format='multipart')
+        download_response = self.submit_and_download(url, data)
+        pdf_content = b''.join(download_response.streaming_content)
 
-        #print("\n--- ДЕТАЛИ ОШИБКИ БЭКЕНДА: ---", response.data)
-
-        # 5. Проверяем утверждения (Asserts)
-        # Ожидаем статус-код 200 OK
-        self.assertEqual(response.status_code, 200)
-
-        # Проверяем, что возвращается именно PDF-файл
-        self.assertEqual(response['Content-Type'], 'application/pdf')
-        self.assertIn('attachment; filename="converted_images.pdf"', response['Content-Disposition'])
-
-        # Проверяем, что бинарный поток ответа не пустой
-        pdf_content = b"".join(response.streaming_content)
         self.assertTrue(len(pdf_content) > 0)
-
-        # Сигнатура (первых 4 байта) любого валидного PDF файла должна быть %PDF
         self.assertEqual(pdf_content[:4], b'%PDF')
 
     def test_conversion_fails_without_images(self):
-        """Тест обработки ошибки, если файлы не были переданы"""
         url = reverse('images_to_pdf')
-
-        # Отправляем пустой запрос
         response = self.client.post(url, {}, format='multipart')
 
-        # Ожидаем ошибку 400 Bad Request
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data, {"error": "Файлы не переданы"})
+        self.assertEqual(response.data, {'error': 'Файлы не переданы'})
 
-    def test_successful_pdf_to_images_conversion(self):
-        """Тест успешной конвертации PDF обратно в архив с картинками"""
+    def test_images_to_pdf_files_too_large(self):
+        url = reverse('images_to_pdf')
+        data = {
+            'images': [
+                self.make_upload('test1.jpg', 'JPEG'),
+                self.make_upload('test2.jpg', 'JPEG'),
+            ]
+        }
+
+        with patch('django.core.files.uploadedfile.UploadedFile.size', new_callable=PropertyMock) as mock_size:
+            mock_size.return_value = 26 * 1024 * 1024
+            response = self.client.post(url, data, format='multipart')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.data,
+            {'error': 'Превышен суммарный лимит размера файлов (макс. 50 МБ)'},
+        )
+
+
+@override_settings(**CELERY_TEST_SETTINGS)
+class PdfToImagesAPITestCase(ConverterAPITestBase):
+
+    def test_successful_pdf_to_jpg_conversion(self):
         url = reverse('pdf_to_images')
+        data = {'pdf': self.create_test_pdf_upload(), 'target': 'jpg'}
 
-        # 1. Сначала генерируем валидный PDF в памяти, используя наш старый сервис
-        img = self.generate_test_image('source.jpg', ext='JPEG')
-        valid_pdf_buffer = convert_images_to_pdf([img])
-        valid_pdf_buffer.name = 'test.pdf'
+        download_response = self.submit_and_download(url, data)
+        zip_content = b''.join(download_response.streaming_content)
 
-        # 2. Отправляем этот PDF на новый эндпоинт
-        data = {'pdf': valid_pdf_buffer}
-        response = self.client.post(url, data, format='multipart')
-
-        # 3. Проверяем результат
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response['Content-Type'], 'application/zip')
-        self.assertIn('filename="converted_pages.zip"', response['Content-Disposition'])
-
-        # Проверяем, что архив не пустой
-        zip_content = b"".join(response.streaming_content)
         self.assertTrue(len(zip_content) > 0)
+        with zipfile.ZipFile(io.BytesIO(zip_content)) as archive:
+            self.assertTrue(any(name.endswith('.jpg') for name in archive.namelist()))
 
     def test_pdf_to_png_conversion(self):
-        """Тест конвертации PDF в PNG через параметр target"""
         url = reverse('pdf_to_images')
+        data = {'pdf': self.create_test_pdf_upload(), 'target': 'png'}
 
-        img = self.generate_test_image('source.jpg', ext='JPEG')
-        valid_pdf_buffer = convert_images_to_pdf([img])
-        valid_pdf_buffer.name = 'test.pdf'
-
-        data = {'pdf': valid_pdf_buffer, 'target': 'png'}
-        response = self.client.post(url, data, format='multipart')
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response['Content-Type'], 'application/zip')
-
-        zip_content = b"".join(response.streaming_content)
-        self.assertTrue(len(zip_content) > 0)
+        download_response = self.submit_and_download(url, data)
+        zip_content = b''.join(download_response.streaming_content)
 
         with zipfile.ZipFile(io.BytesIO(zip_content)) as archive:
             names = archive.namelist()
             self.assertTrue(any(name.endswith('.png') for name in names))
             self.assertFalse(any(name.endswith('.jpg') for name in names))
 
-    def test_pdf_to_images_invalid_target(self):
-        """Тест ошибки при неподдерживаемом формате для PDF"""
+    def test_pdf_to_webp_conversion(self):
         url = reverse('pdf_to_images')
+        data = {'pdf': self.create_test_pdf_upload(), 'target': 'webp'}
 
-        img = self.generate_test_image('source.jpg', ext='JPEG')
-        valid_pdf_buffer = convert_images_to_pdf([img])
-        valid_pdf_buffer.name = 'test.pdf'
+        download_response = self.submit_and_download(url, data)
+        zip_content = b''.join(download_response.streaming_content)
 
-        data = {'pdf': valid_pdf_buffer, 'target': 'webp'}
+        with zipfile.ZipFile(io.BytesIO(zip_content)) as archive:
+            self.assertTrue(any(name.endswith('.webp') for name in archive.namelist()))
+
+    def test_pdf_to_images_invalid_target(self):
+        url = reverse('pdf_to_images')
+        data = {'pdf': self.create_test_pdf_upload(), 'target': 'tiff'}
+
         response = self.client.post(url, data, format='multipart')
 
         self.assertEqual(response.status_code, 400)
         self.assertIn('error', response.data)
 
-    def test_images_to_pdf_files_too_large(self):
-        """Тест ошибки 400, если суммарный вес изображений превышает 50 МБ"""
-        url = reverse('images_to_pdf')
-        img1 = self.generate_test_image('test1.jpg', ext='JPEG')
-        img2 = self.generate_test_image('test2.jpg', ext='JPEG')
-        data = {'images': [img1, img2]}
-
-        # Подменяем размер каждого файла на 26 МБ (в сумме 52 МБ)
-        with patch('django.core.files.uploadedfile.UploadedFile.size', new_callable=PropertyMock) as mock_size:
-            mock_size.return_value = 26 * 1024 * 1024
-            response = self.client.post(url, data, format='multipart')
-
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data, {"error": "Превышен суммарный лимит размера файлов (макс. 50 МБ)"})
-
     def test_pdf_to_images_file_too_large(self):
-        """Тест ошибки 400, если PDF файл превышает лимит 50 МБ"""
         url = reverse('pdf_to_images')
-        img = self.generate_test_image('source.jpg', ext='JPEG')
-        valid_pdf_buffer = convert_images_to_pdf([img])
-        valid_pdf_buffer.name = 'test.pdf'
-        data = {'pdf': valid_pdf_buffer}
+        data = {'pdf': self.create_test_pdf_upload()}
 
-        # Имитируем файл размером 51 МБ
         with patch('django.core.files.uploadedfile.UploadedFile.size', new_callable=PropertyMock) as mock_size:
             mock_size.return_value = 51 * 1024 * 1024
             response = self.client.post(url, data, format='multipart')
 
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data, {"error": "Размер файла превышает лимит 50 МБ"})
+        self.assertEqual(response.data, {'error': 'Размер файла превышает лимит 50 МБ'})
 
 
-class GenericConvertAPITestCase(APITestCase):
+@override_settings(**CELERY_TEST_SETTINGS)
+class GenericConvertAPITestCase(ConverterAPITestBase):
+
     def setUp(self):
+        super().setUp()
         self.url = reverse('generic_convert')
 
-    def generate_test_image(self, ext='JPEG'):
-        file_buf = io.BytesIO()
-        image = Image.new('RGB', (100, 100), color='red')
-        image.save(file_buf, format=ext)
-        file_buf.name = f'test.{ext.lower()}'
-        file_buf.seek(0)
-        return file_buf
+    def _convert_and_get_content(self, source_ext, target, filename=None):
+        filename = filename or f'test.{source_ext.lower()}'
+        ext_map = {'JPG': 'JPEG', 'JPEG': 'JPEG', 'PNG': 'PNG', 'WEBP': 'WEBP', 'TIFF': 'TIFF'}
+        pil_ext = ext_map.get(source_ext.upper(), source_ext.upper())
+
+        data = {
+            'file': self.make_upload(filename, pil_ext),
+            'target': target,
+        }
+        download_response = self.submit_and_download(self.url, data)
+        return b''.join(download_response.streaming_content)
 
     def test_convert_png_to_webp(self):
-        """Тест успешной конвертации PNG в WebP"""
-        img = self.generate_test_image(ext='PNG')
-        data = {'file': img, 'target': 'webp'}
+        content = self._convert_and_get_content('PNG', 'webp')
+        self.assertTrue(len(content) > 0)
+        self.assertEqual(content[:4], b'RIFF')
+        self.assertIn(b'WEBP', content[8:16])
 
-        response = self.client.post(self.url, data, format='multipart')
+    def test_convert_png_to_jpg(self):
+        content = self._convert_and_get_content('PNG', 'jpg')
+        self.assertTrue(len(content) > 0)
+        self.assertEqual(content[:2], b'\xff\xd8')
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response['Content-Type'], 'image/webp')
-        content = b"".join(response.streaming_content)
+    def test_convert_jpg_to_png(self):
+        content = self._convert_and_get_content('JPG', 'png', 'test.jpg')
+        self.assertTrue(len(content) > 0)
+        self.assertEqual(content[:4], b'\x89PNG')
+
+    def test_convert_webp_to_jpg(self):
+        content = self._convert_and_get_content('WEBP', 'jpg', 'test.webp')
+        self.assertTrue(len(content) > 0)
+        self.assertEqual(content[:2], b'\xff\xd8')
+
+    def test_convert_tiff_to_jpg(self):
+        content = self._convert_and_get_content('TIFF', 'jpg', 'test.tiff')
+        self.assertTrue(len(content) > 0)
+        self.assertEqual(content[:2], b'\xff\xd8')
+
+    def test_convert_jpg_to_ico(self):
+        content = self._convert_and_get_content('JPG', 'ico', 'test.jpg')
         self.assertTrue(len(content) > 0)
 
-    def test_invalid_format(self):
-        """Тест ошибки при запросе неподдерживаемого формата"""
-        img = self.generate_test_image(ext='PNG')
-        data = {'file': img, 'target': 'pdf'}  # PDF не входит в список в views.py
-
+    def test_invalid_target_format(self):
+        data = {
+            'file': self.make_upload('test.png', 'PNG'),
+            'target': 'pdf',
+        }
         response = self.client.post(self.url, data, format='multipart')
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("error", response.data)
+        self.assertIn('error', response.data)
 
-    def test_missing_data(self):
-        """Тест ошибки при отсутствии файла или target"""
+    def test_missing_file(self):
         response = self.client.post(self.url, {}, format='multipart')
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data, {'error': 'Файл не передан'})
 
     def test_generic_convert_file_too_large(self):
-        """Тест ошибки 400, если одиночный файл в generic-конвертере превышает 50 МБ"""
-        img = self.generate_test_image(ext='PNG')
-        data = {'file': img, 'target': 'webp'}
+        data = {
+            'file': self.make_upload('test.png', 'PNG'),
+            'target': 'webp',
+        }
 
-        # Имитируем файл размером 51 МБ
         with patch('django.core.files.uploadedfile.UploadedFile.size', new_callable=PropertyMock) as mock_size:
             mock_size.return_value = 51 * 1024 * 1024
             response = self.client.post(self.url, data, format='multipart')
 
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data, {"error": "Размер файла превышает лимит 50 МБ"})
+        self.assertEqual(response.data, {'error': 'Размер файла превышает лимит 50 МБ'})
+
+
+@override_settings(**CELERY_TEST_SETTINGS)
+class TaskSystemAPITestCase(ConverterAPITestBase):
+
+    def test_task_status_returns_download_url_on_success(self):
+        url = reverse('generic_convert')
+        data = {
+            'file': self.make_upload('test.png', 'PNG'),
+            'target': 'jpg',
+        }
+
+        post_response = self.client.post(url, data, format='multipart')
+        task_id = post_response.data['task_id']
+
+        status_response = self.client.get(reverse('task_status', kwargs={'task_id': task_id}))
+
+        self.assertEqual(status_response.data['status'], 'SUCCESS')
+        self.assertIn('download_url', status_response.data)
+
+    def test_download_nonexistent_file_returns_404(self):
+        url = reverse('file_download', kwargs={'filename': 'nonexistent_file.pdf'})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)

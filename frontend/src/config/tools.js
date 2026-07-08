@@ -190,6 +190,18 @@ export const SUPPORTED_TOOLS = {
     description: 'Конвертируйте иконки ICO в формат PNG с сохранением прозрачности.',
     },
 
+  'ico-to-jpg': {
+    source: 'ico',
+    target: 'jpg',
+    sourceName: 'ICO',
+    targetName: 'JPG',
+    accept: '.ico',
+    maxFiles: 10,
+    icon: '🎨',
+    category: 'image',
+    description: 'Конвертируйте иконки ICO в формат JPG, прозрачный фон станет белым.',
+    },
+
   'heic-to-jpg': {
     source: 'heic',
     target: 'jpg',

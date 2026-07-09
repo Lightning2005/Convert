@@ -78,7 +78,8 @@ def clear_old_tmp_files_task():
                 try:
                     os.remove(file_path)
                     deleted_count += 1
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"Ошибка удаления файла {file_path}: {e}")
+                    #pass
 
     return f"Cleaned up {deleted_count} files."

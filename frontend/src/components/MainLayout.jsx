@@ -59,7 +59,7 @@ export default function MainLayout({ children }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const dropdownClassName = "absolute left-0 mt-3 w-[32rem] max-h-[70vh] overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-x-2 bg-main rounded-xl border border-ui-border p-2 z-50 animate-fadeIn text-text-primary shadow-md [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-ui-border [&::-webkit-scrollbar-thumb]:rounded-full";
+  const dropdownClassName = "absolute left-1/2 -translate-x-1/2 mt-3 w-[25rem] max-h-[70vh] overflow-y-auto grid grid-cols-2 gap-x-2 gap-y-0.5 bg-main rounded-xl border border-ui-border p-2 z-50 animate-fadeIn text-text-primary shadow-lg [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-ui-border [&::-webkit-scrollbar-thumb]:rounded-full";
 
   return (
     <div className="min-h-screen flex flex-col bg-surface-muted text-text-primary">
@@ -104,7 +104,7 @@ export default function MainLayout({ children }) {
                     key={tool.slug}
                     to={`/tool/${tool.slug}`}
                     onClick={() => setActiveDropdown(null)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-primary-light rounded-lg transition font-normal"
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-primary-light rounded-lg transition font-normal"
                   >
                     <span>{tool.sourceName} в {tool.targetName}</span>
                   </Link>

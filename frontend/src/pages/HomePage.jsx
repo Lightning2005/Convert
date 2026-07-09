@@ -44,7 +44,9 @@ export default function HomePage() {
 
   const getFileExtension = (filename) => {
     const ext = filename.split('.').pop().toLowerCase();
-    return ext === 'jpeg' ? 'jpg' : ext;
+    if (ext === 'jpeg') return 'jpg';
+    if (ext === 'tif') return 'tiff';
+    return ext;
   };
 
   const getAvailableTargets = (sourceExt) => {
@@ -122,25 +124,25 @@ export default function HomePage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
+    <div className="max-w-4xl mx-auto px-4 py-6 text-left">
       {/* Hero-секция */}
       <div className="text-center mb-10">
-        <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight sm:text-5xl mb-4">
-          Умный конвертер файлов <span className="text-blue-600">«Конверт»</span>
+        <h1 className="text-4xl font-extrabold text-text-primary tracking-tight sm:text-5xl mb-4">
+          Умный конвертер файлов Конверт
         </h1>
-        <p className="text-lg text-slate-500 max-w-2xl mx-auto">
+        <p className="text-lg text-text-secondary max-w-2xl mx-auto">
           Быстрая и безопасная конвертация изображений и PDF документов онлайн. Без регистрации и водяных знаков.
         </p>
       </div>
 
       {/* Зона загрузки / Панель управления файлами */}
-      <div className="bg-white rounded-2xl shadow-xl border border-slate-100 p-8 mb-16">
+      <div className="bg-main rounded-2xl border border-ui-border p-8 mb-16">
         {selectedFiles.length === 0 ? (
           <div
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-slate-300 rounded-xl p-12 text-center cursor-pointer hover:border-blue-500 transition-colors bg-slate-50/50 group"
+            className="border-2 border-dashed border-ui-border rounded-xl p-12 text-center cursor-pointer hover:border-text-secondary/40 transition-colors bg-surface-muted group"
           >
             <input
               type="file"
@@ -149,35 +151,39 @@ export default function HomePage() {
               multiple
               className="hidden"
             />
-            <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">📂</div>
-            <p className="text-xl font-medium text-slate-700 mb-1">
-              Перетащите файлы сюда или <span className="text-blue-600 font-semibold">выберите на компьютере</span>
+            <div className="mb-4 group-hover:scale-105 transition-transform text-text-secondary flex justify-center">
+              <svg className="h-12 w-12" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+              </svg>
+            </div>
+            <p className="text-xl font-medium text-text-primary mb-1">
+              Перетащите файлы сюда или <span className="text-primary font-semibold">выберите на устройстве</span>
             </p>
-            <p className="text-xs text-slate-400 mt-2">
-              Макс. размер: {MAX_TOTAL_SIZE_MB} МБ суммарно. Поддерживаются JPG, PNG, WebP, TIFF, PDF
+            <p className="text-xs text-text-secondary mt-2">
+              Макс. размер: {MAX_TOTAL_SIZE_MB} МБ суммарно. Поддерживаются PDF, JPG, PNG, WebP, TIFF, ICO, BMP, HEIC
             </p>
           </div>
         ) : (
-          <div className="border border-slate-200 rounded-xl p-6 bg-slate-50">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="border border-ui-border rounded-xl p-6 bg-surface-muted">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div>
-                <span className="inline-block bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-md mb-2">
+                <span className="inline-block bg-primary-light text-primary text-xs font-semibold px-2.5 py-0.5 rounded-md mb-2 border border-primary/10">
                   Успешно добавлено: {selectedFiles.length} файл(ов)
                 </span>
-                <h3 className="text-base font-medium text-slate-800 truncate max-w-md">
+                <h3 className="text-base font-medium text-text-primary truncate max-w-md">
                   {selectedFiles.length === 1 ? selectedFiles[0].name : `${selectedFiles[0].name} и ещё ${selectedFiles.length - 1}...`}
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Исходный формат: <span className="font-bold uppercase text-slate-600">{detectedSource}</span>
+                <p className="text-xs text-text-secondary mt-0.5">
+                  Исходный формат: <span className="font-bold uppercase text-text-primary">{detectedSource}</span>
                 </p>
               </div>
 
               <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-slate-600">Конвертировать в:</span>
+                <span className="text-sm font-medium text-text-secondary whitespace-nowrap">Конвертировать в:</span>
                 <select
                   value={targetFormat}
                   onChange={(e) => setTargetFormat(e.target.value)}
-                  className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="bg-main border border-ui-border hover:border-primary-light rounded-lg px-3 py-2 text-sm font-semibold text-text-primary shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40 cursor-pointer"
                 >
                   {getAvailableTargets(detectedSource).map((target) => (
                     <option key={target.ext} value={target.ext}>
@@ -187,19 +193,19 @@ export default function HomePage() {
                 </select>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 justify-end">
                 <button
                   onClick={handleCancel}
-                  className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
+                  className="p-2 text-text-secondary hover:text-primary-hover active:text-primary-active rounded-lg hover:bg-main/50 transition-colors text-sm"
                   title="Отмена"
                 >
-                  ✕
+                  ✕ Отмена
                 </button>
                 <button
                   onClick={handleProceed}
-                  className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-6 py-2.5 rounded-lg shadow-md transition-all flex items-center gap-2"
+                  className="bg-primary hover:bg-primary-hover active:bg-primary-active text-white text-sm font-bold px-6 py-2.5 rounded-lg transition-colors flex items-center gap-2 shadow-sm"
                 >
-                  Далее <span>→</span>
+                  Далее
                 </button>
               </div>
             </div>
@@ -207,43 +213,52 @@ export default function HomePage() {
         )}
 
         {error && (
-          <div className="mt-4 bg-red-50 border-l-4 border-red-500 p-4 rounded-md">
-            <div className="flex">
-              <span className="text-red-500 mr-2">⚠️</span>
-              <p className="text-sm text-red-700 font-medium">{error}</p>
-            </div>
+          <div className="mt-4 bg-error/10 border-l-4 border-error p-4 rounded-r-xl">
+            <p className="text-sm text-error font-medium">{error}</p>
           </div>
         )}
       </div>
 
       {/* БЛОК СЕО 1: НАШИ ПРЕИМУЩЕСТВА */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-center">
-          <div className="text-3xl mb-3">🛡️</div>
-          <h3 className="font-bold text-slate-800 mb-2">Надежная защита</h3>
-          <p className="text-xs text-slate-500 leading-relaxed">
+        <div className="bg-main p-6 rounded-2xl border border-ui-border text-center flex flex-col items-center">
+          <div className="mb-3 text-primary">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </div>
+          <h3 className="font-bold text-text-primary mb-2 text-sm md:text-base">Надежная защита</h3>
+          <p className="text-xs text-text-secondary leading-relaxed">
             Файлы защищены сквозным шифрованием и полностью удаляются с серверов через 60 минут. Никаких утечек.
           </p>
         </div>
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-center">
-          <div className="text-3xl mb-3">💎</div>
-          <h3 className="font-bold text-slate-800 mb-2">Максимальное качество</h3>
-          <p className="text-xs text-slate-500 leading-relaxed">
+        <div className="bg-main p-6 rounded-2xl border border-ui-border text-center flex flex-col items-center">
+          <div className="mb-3 text-primary">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+            </svg>
+          </div>
+          <h3 className="font-bold text-text-primary mb-2 text-sm md:text-base">Максимальное качество</h3>
+          <p className="text-xs text-text-secondary leading-relaxed">
             Продвинутые библиотеки обработки сохраняют исходное разрешение, сочные цвета и четкость графики.
           </p>
         </div>
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-center">
-          <div className="text-3xl mb-3">⚡</div>
-          <h3 className="font-bold text-slate-800 mb-2">100% Бесплатно</h3>
-          <p className="text-xs text-slate-500 leading-relaxed">
+        <div className="bg-main p-6 rounded-2xl border border-ui-border text-center flex flex-col items-center">
+          <div className="mb-3 text-primary">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <h3 className="font-bold text-text-primary mb-2 text-sm md:text-base">Бесплатно</h3>
+          <p className="text-xs text-text-secondary leading-relaxed">
             Конвертируйте документы без водяных знаков, скрытых платежей, подписок и обязательной регистрации.
           </p>
         </div>
       </div>
 
       {/* БЛОК СЕО 2: ИНТЕРАКТИВНЫЙ FAQ АККОРДЕОН */}
-      <div className="border-t border-slate-200/60 pt-10">
-        <h2 className="text-2xl font-extrabold text-slate-900 text-center mb-8">
+      <div className="border-t border-ui-border pt-10">
+        <h2 className="text-2xl font-extrabold text-text-primary text-center mb-8">
           Часто задаваемые вопросы (FAQ)
         </h2>
 
@@ -253,25 +268,25 @@ export default function HomePage() {
             return (
               <div
                 key={index}
-                className="bg-white border border-slate-200/70 rounded-xl overflow-hidden transition-all duration-200"
+                className="bg-main border border-ui-border rounded-xl overflow-hidden"
               >
                 <button
                   onClick={() => toggleFaq(index)}
-                  className="w-full flex items-center justify-between px-5 py-4 text-left font-semibold text-slate-800 hover:bg-slate-50/80 transition-colors focus:outline-none"
+                  className="w-full flex items-center justify-between px-5 py-4 text-left font-semibold text-text-primary hover:bg-surface-muted transition-colors focus:outline-none"
                 >
                   <span className="text-sm md:text-base">{item.q}</span>
-                  <span className={`text-slate-400 text-xs transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>
-                    ▼
-                  </span>
+                  <svg className={`w-3 h-3 text-text-secondary transition-transform duration-200 fill-current ${isOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20">
+                    <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                  </svg>
                 </button>
 
                 {/* Плавное раскрытие ответа */}
                 <div
                   className={`transition-all duration-300 ease-in-out overflow-hidden ${
-                    isOpen ? 'max-h-48 border-t border-slate-100 bg-slate-50/40' : 'max-h-0'
+                    isOpen ? 'max-h-48 border-t border-ui-border bg-surface-muted/30' : 'max-h-0'
                   }`}
                 >
-                  <p className="p-5 text-sm text-slate-600 leading-relaxed">
+                  <p className="p-5 text-sm text-text-secondary leading-relaxed">
                     {item.a}
                   </p>
                 </div>

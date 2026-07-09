@@ -13,11 +13,14 @@ export default function ConverterPage() {
     return (
       <div className="text-center py-12 flex flex-col items-center gap-4">
         <span className="text-6xl">🔍</span>
-        <h1 className="text-2xl font-bold text-slate-900">Инструмент не найден</h1>
-        <p className="text-slate-500 max-w-md">
+        <h1 className="text-2xl font-bold text-text-primary">Инструмент не найден</h1>
+        <p className="text-text-secondary max-w-md text-sm">
           К сожалению, запрашиваемый конвертер не существует или находится в разработке.
         </p>
-        <Link to="/" className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition">
+        <Link
+          to="/"
+          className="mt-4 bg-primary text-white px-6 py-2 rounded-xl text-sm font-medium hover:bg-primary-hover transition-colors shadow-sm"
+        >
           На главную
         </Link>
       </div>

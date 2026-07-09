@@ -17,6 +17,7 @@ export default function MainLayout({ children }) {
 
   const hideAdsRoutes = ['/privacy', '/contacts'];
   const showAds = !hideAdsRoutes.includes(location.pathname);
+  const isHomePage = location.pathname === '/';
 
   const toolsArray = Object.entries(SUPPORTED_TOOLS).map(([slug, data]) => ({ slug, ...data }));
   const pdfTools = toolsArray.filter(t => t.category === 'pdf');
@@ -165,7 +166,11 @@ export default function MainLayout({ children }) {
         )}
 
         <div className="flex-1 flex flex-col items-center gap-8 max-w-[1000px] mx-auto w-full">
-          <main className="w-full flex flex-col items-center justify-between gap-8 bg-main p-8 md:p-10 rounded-2xl border border-ui-border min-h-[550px]">
+          <main className={
+            isHomePage
+              ? "w-full flex flex-col gap-8"
+              : "w-full flex flex-col items-center justify-between gap-8 bg-main p-8 md:p-10 rounded-2xl border border-ui-border min-h-[550px]"
+          }>
             {children}
           </main>
 

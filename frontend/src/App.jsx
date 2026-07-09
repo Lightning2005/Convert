@@ -12,9 +12,7 @@ export default function App() {
       <MainLayout>
         <Routes>
           <Route path="/" element={<HomePage />} />
-          {/* Переносим инструменты на явный эндпоинт для безопасности роутинга и SEO */}
           <Route path="/tool/:slug" element={<ConverterPage />} />
-          {/* Сюда в будущем легко встанут /about, /privacy, /faq */}
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/contacts" element={<ContactsPage />} />
         </Routes>

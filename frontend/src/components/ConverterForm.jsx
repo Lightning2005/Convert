@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { runConversion, downloadBlob } from '../services/api';
+import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers';
 
 // Импорты dnd-kit
 import {
@@ -7,7 +8,8 @@ import {
   closestCenter,
   PointerSensor,
   useSensor,
-  useSensors
+  useSensors,
+  DragOverlay // <-- Добавили оверлей
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -17,52 +19,79 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-// Дочерний компонент для интерактивной строки файла
-function SortableFileItem({ id, item, index, onRemove, isLoading }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging
-  } = useSortable({ id });
+// 1. Чистый презентационный компонент строки (используется и в списке, и в оверлее)
+function FileItemView({
+  item,
+  index,
+  onRemove,
+  isLoading,
+  isSortableEnabled,
+  attributes,
+  listeners,
+  isDragging,
+  isOverlay
+}) {
+  const [thumbUrl, setThumbUrl] = useState('');
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 10 : 1,
-  };
+  useEffect(() => {
+    if (!item.file) return;
+
+    if (item.file.type.startsWith('image/')) {
+      const url = URL.createObjectURL(item.file);
+      setThumbUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }
+  }, [item.file]);
 
   return (
     <div
-      ref={setNodeRef}
-      style={style}
-      className={`flex items-center justify-between p-3 bg-main border border-ui-border rounded-xl shadow-xs transition-all ${
-        isDragging ? 'border-primary ring-2 ring-primary/10 shadow-xs bg-surface-muted scale-[1.01]' : 'hover:border-text-secondary/40'
+      className={`flex items-center justify-between p-2.5 bg-main border border-ui-border rounded-xl shadow-xs ${
+        isOverlay
+          ? 'border-primary ring-2 ring-primary/10 shadow-md bg-surface-muted scale-[1.01] opacity-95' // Стили для летящего клона
+          : isDragging
+          ? 'opacity-30 border-dashed border-ui-border bg-surface-muted/50' // Стили для слота-placeholder в списке
+          : 'hover:border-text-secondary/40 transition-all'
       } ${isLoading ? 'opacity-50 pointer-events-none' : ''}`}
     >
-      {/* Область перетаскивания (иконка + название) */}
-      <div
-        {...attributes}
-        {...listeners}
-        className="flex items-center gap-3 flex-1 min-w-0 cursor-grab active:cursor-grabbing"
-      >
-        <svg className="w-5 h-5 text-text-secondary shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-        </svg>
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        {isSortableEnabled && !isLoading && (
+          <div
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing p-1 text-text-secondary hover:text-text-primary rounded-md hover:bg-surface-muted transition-colors shrink-0 flex items-center"
+            title="Перетащите для изменения порядка страниц"
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M9 5a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm6-12a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4z" />
+            </svg>
+          </div>
+        )}
+
+        {thumbUrl ? (
+          <img
+            src={thumbUrl}
+            alt={item.file.name}
+            className="w-10 h-10 object-cover rounded-lg border border-ui-border shrink-0 select-none bg-surface-muted"
+          />
+        ) : (
+          <div className="w-10 h-10 flex items-center justify-center bg-surface-muted border border-ui-border rounded-lg shrink-0 text-text-secondary">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+          </div>
+        )}
+
         <span className="text-sm font-medium text-text-primary truncate">{item.file.name}</span>
       </div>
 
-      {/* Кнопка удаления */}
-      {!isLoading && (
+      {!isLoading && !isOverlay && (
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             onRemove(index);
           }}
-          className="ml-2 p-1.5 text-text-secondary hover:text-error rounded-lg hover:bg-surface-muted transition-colors flex items-center justify-center"
+          className="ml-2 p-1.5 text-text-secondary hover:text-error rounded-lg hover:bg-surface-muted transition-colors flex items-center justify-center shrink-0"
           title="Удалить файл"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -74,15 +103,49 @@ function SortableFileItem({ id, item, index, onRemove, isLoading }) {
   );
 }
 
+// 2. Компонент-обертка для dnd-kit
+function SortableFileItem({ id, item, index, onRemove, isLoading, isSortableEnabled }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id, disabled: !isSortableEnabled });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition: isDragging ? undefined : transition,
+    zIndex: isDragging ? 10 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <FileItemView
+        item={item}
+        index={index}
+        onRemove={onRemove}
+        isLoading={isLoading}
+        isSortableEnabled={isSortableEnabled}
+        attributes={attributes}
+        listeners={listeners}
+        isDragging={isDragging}
+      />
+    </div>
+  );
+}
+
 export default function ConverterForm({ config, slug, preloadedFiles }) {
-  // Храним объекты структуры: { id: String, file: File }
   const [files, setFiles] = useState([]);
+  const [activeId, setActiveId] = useState(null); // <-- Храним ID файла, который сейчас тащат
   const [isDragActive, setIsDragActive] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Настройка сенсоров с ограничением на минимальное смещение (чтобы не блокировать клики по кнопке)
+  const isSortableEnabled = config.targetName?.toUpperCase() === 'PDF';
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -172,13 +235,17 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
     });
   };
 
-  // Удаление файла по индексу
   const handleRemoveFile = (indexToRemove) => {
     setFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
   };
 
-  // Окончание перетаскивания Drag-and-Drop
+  const handleDragStart = (event) => {
+    setActiveId(event.active.id);
+  };
+
   const handleDragEnd = (event) => {
+    if (!isSortableEnabled) return;
+
     const { active, over } = event;
     if (active && over && active.id !== over.id) {
       setFiles((items) => {
@@ -187,6 +254,11 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
         return arrayMove(items, oldIndex, newIndex);
       });
     }
+    setActiveId(null);
+  };
+
+  const handleDragCancel = () => {
+    setActiveId(null);
   };
 
   const handleSubmit = async () => {
@@ -196,7 +268,6 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
     setError('');
 
     try {
-      // Извлекаем чистые объекты File для совместимости с бэкенд-сервисом
       const rawFilesArray = files.map(item => item.file);
       const { blob, filename } = await runConversion(config, rawFilesArray);
       downloadBlob(blob, filename);
@@ -208,9 +279,12 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
     }
   };
 
+  // Находим объект файла, который сейчас перетаскивают, для оверлея
+  const activeItem = files.find(f => f.id === activeId);
+
   return (
     <>
-      {/* Динамический текст заголовков */}
+      {/* ... Верхняя часть (заголовки и инпуты) без изменений ... */}
       <div className="text-center">
         <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-text-primary">
           Конвертация {config.sourceName} в {config.targetName}
@@ -230,7 +304,6 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
         disabled={isLoading}
       />
 
-      {/* Интерактивная зона драг-н-дропа */}
       <div
         onDragEnter={handleDrag}
         onDragOver={handleDrag}
@@ -268,14 +341,12 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
         </span>
       </div>
 
-      {/* Ошибки валидации и бэкенда */}
       {error && (
         <div className="w-full max-w-xl bg-error/10 border-l-4 border-error p-4 rounded-r-xl text-sm text-error font-medium">
           {error}
         </div>
       )}
 
-      {/* Интерактивный список файлов с поддержкой Drag-and-Drop */}
       {files.length > 0 && (
         <div className="w-full max-w-xl flex flex-col gap-3 animate-fadeIn">
           <div className="w-full text-sm text-text-secondary flex justify-between px-1 items-center">
@@ -285,7 +356,14 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
             )}
           </div>
 
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart} // <-- Подключили
+            onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel} // <-- Подключили
+            modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+          >
             <SortableContext items={files.map(f => f.id)} strategy={verticalListSortingStrategy}>
               <div className="flex flex-col gap-2 max-h-64 overflow-y-auto pr-1 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-ui-border [&::-webkit-scrollbar-thumb]:rounded-full">
                 {files.map((item, index) => (
@@ -296,15 +374,29 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
                     index={index}
                     onRemove={handleRemoveFile}
                     isLoading={isLoading}
+                    isSortableEnabled={isSortableEnabled}
                   />
                 ))}
               </div>
             </SortableContext>
+
+            {/* 3. САМ ОВЕРЛЕЙ: отвечает за красивый полет клона над интерфейсом */}
+            <DragOverlay>
+              {activeItem ? (
+                <FileItemView
+                  item={activeItem}
+                  index={files.findIndex(f => f.id === activeId)}
+                  isLoading={isLoading}
+                  isSortableEnabled={isSortableEnabled}
+                  isOverlay
+                />
+              ) : null}
+            </DragOverlay>
           </DndContext>
         </div>
       )}
 
-      {/* Кнопка отправки на бэкенд */}
+      {/* ... Нижняя кнопка конвертации и футер без изменений ... */}
       {files.length > 0 && (
         <button
           onClick={handleSubmit}
@@ -333,7 +425,7 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
         <h3 className="font-semibold text-lg mb-2 text-text-primary">Как это работает:</h3>
         <ul className="list-disc pl-5 space-y-1 text-text-secondary text-sm">
           <li>Перетащите файлы в зону выше или нажмите для выбора</li>
-          <li>Настройте нужный порядок файлов с помощью перетаскивания строк</li>
+          {isSortableEnabled && <li>Настройте нужный порядок файлов с помощью перетаскивания строк</li>}
           <li>Нажмите кнопку «Конвертировать»</li>
           <li>Дождитесь завершения обработки и скачайте готовый {config.targetName}</li>
         </ul>

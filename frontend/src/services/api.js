@@ -1,6 +1,10 @@
 import JSZip from 'jszip';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+// По умолчанию API живёт на том же origin, что и страница: в разработке
+// запросы на /api проксирует vite (см. vite.config.js), в продакшене фронт и
+// бэкенд отдаются с одного домена. Отдельный адрес нужен только если API
+// развёрнут на другом хосте.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 const POLL_INTERVAL_MS = 1500;
 const POLL_MAX_ATTEMPTS = 60; // ~90 секунд ожидания
 
@@ -35,7 +39,8 @@ async function pollTaskStatus(taskId, maxAttempts = POLL_MAX_ATTEMPTS) {
     const data = await response.json();
 
     if (data.status === 'SUCCESS') {
-      const fileResponse = await fetch(data.download_url);
+      // Бэкенд отдаёт путь без хоста — база подставляется на стороне фронтенда.
+      const fileResponse = await fetch(`${API_BASE_URL}${data.download_url}`);
       if (!fileResponse.ok) throw new Error('Не удалось скачать готовый файл.');
       return await fileResponse.blob();
     }

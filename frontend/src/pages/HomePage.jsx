@@ -81,13 +81,16 @@ export default function HomePage() {
       return;
     }
 
-    const sampleToolKey = Object.keys(SUPPORTED_TOOLS).find(
-      (key) => SUPPORTED_TOOLS[key].source === firstExt
+    // Цель на главной ещё не выбрана, поэтому ограничиваемся самым щедрым
+    // лимитом среди доступных форматов: страница инструмента урежет его до своего
+    const maxFilesLimit = Math.max(
+      ...Object.values(SUPPORTED_TOOLS)
+        .filter((tool) => tool.source === firstExt)
+        .map((tool) => tool.maxFiles)
     );
-    const maxFilesLimit = SUPPORTED_TOOLS[sampleToolKey]?.maxFiles || 10;
 
     if (filesArray.length > maxFilesLimit) {
-      setError(`Превышен лимит! Для этого формата можно загрузить не более ${maxFilesLimit} файлов одновременно.`);
+      setError(`Превышен лимит! За один раз можно загрузить не более ${maxFilesLimit} файлов.`);
       return;
     }
 

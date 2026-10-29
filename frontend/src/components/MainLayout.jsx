@@ -3,6 +3,10 @@ import { Link, useLocation } from 'react-router-dom';
 import { SUPPORTED_TOOLS } from '../config/tools';
 import logoIcon from '../assets/logo.svg';
 
+const FLOOR_AD_KEY = 'floor-ad-dismissed';
+// Весь слой (креатив + кнопка) занимает 28% высоты экрана — РСЯ разрешает липкому блоку не более 30%
+const FLOOR_LAYER_HEIGHT = 'h-[28vh] max-h-[250px] min-h-[150px]';
+
 export default function MainLayout({ children }) {
   const [activeDropdown, setActiveDropdown] = useState(null);
 
@@ -11,6 +15,18 @@ export default function MainLayout({ children }) {
   const [mobilePdfOpen, setMobilePdfOpen] = useState(false);
   const [mobileImageOpen, setMobileImageOpen] = useState(false);
 
+  //РСЯ требует кнопку закрытия липкого блока; закрытие действует до конца сессии
+  const [floorDismissed, setFloorDismissed] = useState(false);
+
+  useEffect(() => {
+    setFloorDismissed(sessionStorage.getItem(FLOOR_AD_KEY) === '1');
+  }, []);
+
+  const dismissFloorAd = () => {
+    sessionStorage.setItem(FLOOR_AD_KEY, '1');
+    setFloorDismissed(true);
+  };
+
   const pdfRef = useRef(null);
   const imageRef = useRef(null);
   const location = useLocation();
@@ -18,6 +34,7 @@ export default function MainLayout({ children }) {
   const hideAdsRoutes = ['/privacy', '/contacts'];
   const showAds = !hideAdsRoutes.includes(location.pathname);
   const isHomePage = location.pathname === '/';
+  const showFloor = showAds && !floorDismissed;
 
   const toolsArray = Object.entries(SUPPORTED_TOOLS).map(([slug, data]) => ({ slug, ...data }));
   const pdfTools = toolsArray.filter(t => t.category === 'pdf');
@@ -74,7 +91,7 @@ export default function MainLayout({ children }) {
   const dropdownClassName = "absolute left-1/2 -translate-x-1/2 mt-3 w-[25rem] max-h-[70vh] overflow-y-auto grid grid-cols-2 gap-x-2 gap-y-0.5 bg-main rounded-xl border border-ui-border p-2 z-50 animate-fadeIn text-text-primary shadow-lg [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-ui-border [&::-webkit-scrollbar-thumb]:rounded-full";
 
   return (
-    <div className="min-h-screen flex flex-col bg-surface-muted text-text-primary">
+    <div className={`min-h-screen flex flex-col bg-surface-muted text-text-primary ${showFloor ? 'pb-[calc(28vh+1.5rem)] md:pb-0' : ''}`}>
 
       {/* ШАПКА */}
       <header className="w-full bg-main text-text-primary px-6 py-4 flex justify-between items-center border-b border-ui-border shrink-0 z-50">
@@ -180,8 +197,12 @@ export default function MainLayout({ children }) {
       {/* ОСНОВНОЙ КОНТЕНТЕР */}
       <div className="flex-1 w-full flex p-6 gap-6 justify-between items-start relative max-w-[1600px] mx-auto py-12">
         {showAds && (
-          <aside className="hidden xl:flex w-[200px] h-[600px] bg-main border border-ui-border rounded-xl p-4 items-center justify-center text-center text-text-secondary shrink-0 sticky top-6 z-0">
-            Реклама <br /> (Небоскреб)
+          <aside
+            role="complementary"
+            aria-label="Реклама"
+            className="hidden xl:flex w-[200px] h-[600px] bg-main border border-ui-border rounded-xl p-4 items-center justify-center text-center text-text-secondary shrink-0 sticky top-6 z-0"
+          >
+            Реклама <br /> 160×600
           </aside>
         )}
 
@@ -195,18 +216,50 @@ export default function MainLayout({ children }) {
           </main>
 
           {showAds && (
-            <div className="w-full max-w-[1000px] h-[175px] bg-main border border-ui-border rounded-xl flex items-center justify-center text-center text-text-secondary shrink-0">
-              Нижний рекламный block (1000х175)
+            <div
+              role="complementary"
+              aria-label="Реклама"
+              className="hidden md:flex w-full max-w-[1000px] h-[175px] bg-main border border-ui-border rounded-xl items-center justify-center text-center text-text-secondary shrink-0"
+            >
+              Рекламный блок 970×175
             </div>
           )}
         </div>
 
         {showAds && (
-          <aside className="hidden xl:flex w-[200px] h-[600px] bg-main border border-ui-border rounded-xl p-4 items-center justify-center text-center text-text-secondary shrink-0 sticky top-6 z-0">
-            Реклама <br /> (Небоскреб)
+          <aside
+            role="complementary"
+            aria-label="Реклама"
+            className="hidden xl:flex w-[200px] h-[600px] bg-main border border-ui-border rounded-xl p-4 items-center justify-center text-center text-text-secondary shrink-0 sticky top-6 z-0"
+          >
+            Реклама <br /> 160×600
           </aside>
         )}
       </div>
+
+      {/* ЛИПКИЙ МОБИЛЬНЫЙ РЕКЛАМНЫЙ БЛОК */}
+      {showFloor && (
+        <div
+          className={`md:hidden fixed bottom-0 inset-x-0 z-40 flex flex-col items-center gap-1.5 px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] bg-surface-muted/95 backdrop-blur-sm border-t border-ui-border ${FLOOR_LAYER_HEIGHT}`}
+        >
+          <button
+            type="button"
+            onClick={dismissFloorAd}
+            aria-label="Закрыть рекламный блок"
+            className="self-center shrink-0 flex items-center gap-1 px-3 py-0.5 rounded-full bg-text-primary/75 text-white text-[11px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            Закрыть рекламу ✕
+          </button>
+
+          <div
+            role="complementary"
+            aria-label="Реклама"
+            className="w-full max-w-[420px] flex-1 min-h-0 bg-main border border-ui-border rounded-xl flex items-center justify-center text-center text-text-secondary text-sm"
+          >
+            Рекламный блок 320×100
+          </div>
+        </div>
+      )}
 
       {/* ПОДВАЛ */}
       <footer className="w-full text-center text-xs text-text-secondary py-6 mt-auto border-t border-ui-border bg-main/50 backdrop-blur-sm flex flex-col sm:flex-row justify-center items-center gap-4 sm:gap-8 shrink-0">

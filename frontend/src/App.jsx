@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import MainLayout from './components/MainLayout';
+import Seo from './components/Seo';
 import HomePage from './pages/HomePage';
 import ConverterPage from './pages/ConverterPage';
 import PrivacyPage from './pages/PrivacyPage';
@@ -10,6 +11,7 @@ import NotFoundPage from './pages/NotFoundPage';
 export default function App() {
   return (
     <BrowserRouter>
+      <Seo />
       <MainLayout>
         <Routes>
           <Route path="/" element={<HomePage />} />

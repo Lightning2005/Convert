@@ -156,10 +156,11 @@ class TaskStatusView(APIView):
             result_data = task_result.result
             if result_data and result_data.get("status") == "SUCCESS":
                 filename = result_data.get("result_file")
-                download_url = request.build_absolute_uri(
-                    reverse('file_download', kwargs={'filename': filename})
+                # Отдаём путь, а не absolute URI: адрес сборки ответа зависит от
+                # заголовка Host, а фронтенд сам знает, откуда он качает.
+                response_data["download_url"] = reverse(
+                    'file_download', kwargs={'filename': filename}
                 )
-                response_data["download_url"] = download_url
             else:
                 response_data["status"] = "FAILURE"
                 response_data["error"] = result_data.get("error", "Unknown error during conversion")

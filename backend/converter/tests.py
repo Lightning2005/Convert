@@ -339,6 +339,10 @@ class TaskSystemAPITestCase(ConverterAPITestBase):
 
         self.assertEqual(status_response.data['status'], 'SUCCESS')
         self.assertIn('download_url', status_response.data)
+        # Фронтенд клеит этот путь к своему API_BASE_URL, поэтому схема и хост
+        # здесь лишние.
+        self.assertTrue(status_response.data['download_url'].startswith('/api/download/'),
+                        status_response.data['download_url'])
 
     def test_download_nonexistent_file_returns_404(self):
         url = reverse('file_download', kwargs={'filename': 'nonexistent_file.pdf'})

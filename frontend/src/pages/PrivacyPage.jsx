@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 export default function PrivacyPage() {
   return (
     <div className="w-full max-w-3xl mx-auto text-left py-4">
-      <h1 className="text-3xl font-extrabold text-text-primary mb-6">Политика конфиденциальности</h1>
+      <h1 className="text-2xl sm:text-3xl font-extrabold text-text-primary mb-6 break-words">Политика конфиденциальности</h1>
       <p className="text-sm text-text-secondary mb-8">Последнее обновление: {new Date().toLocaleDateString('ru-RU')}</p>
 
       <div className="space-y-6 text-sm text-text-secondary leading-relaxed">

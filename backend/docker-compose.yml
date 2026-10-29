@@ -44,6 +44,9 @@ services:
     command: celery -A core beat --loglevel=info
     volumes:
       - .:/app
+      # Планировщик удаляет файлы из /app/tmp_files — без общего тома он
+      # чистил бы свою пустую копию, и результаты копил бы на диске
+      - tmp_files:/app/tmp_files
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0

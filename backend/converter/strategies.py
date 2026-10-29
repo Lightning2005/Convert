@@ -13,21 +13,26 @@ from pillow_heif import register_heif_opener
 # Регистрация плагина для поддержки HEIC
 register_heif_opener()
 
+# Максимальный размер слоя ICO, который понимает Windows
+ICO_SIZE = 256
+
 
 def _save_as_ico(img: Image.Image, output_path: str) -> None:
     """
-    ICO: Сохранение в один слой 256x256.
-    Гарантирует идеальное отображение в просмотрщике Windows
-    и корректное масштабирование самой системой.
+    ICO: одиночный слой 256x256. Картинка вписывается в квадрат с сохранением
+    пропорций, остаток заполняется прозрачностью — иначе логотип 4:1 превратился
+    бы в узнаваемое ни на что не похожее пятно.
     """
-    # Приводим к RGBA для поддержки прозрачности
     rgba_img = img.convert('RGBA')
+    ratio = min(ICO_SIZE / rgba_img.width, ICO_SIZE / rgba_img.height)
+    resized_w = max(1, round(rgba_img.width * ratio))
+    resized_h = max(1, round(rgba_img.height * ratio))
+    resized = rgba_img.resize((resized_w, resized_h), Image.Resampling.LANCZOS)
 
-    # Делаем чистый квадрат 256x256 с максимальным качеством сглаживания
-    resized = rgba_img.resize((256, 256), Image.Resampling.LANCZOS)
+    layer = Image.new('RGBA', (ICO_SIZE, ICO_SIZE), (0, 0, 0, 0))
+    layer.paste(resized, ((ICO_SIZE - resized_w) // 2, (ICO_SIZE - resized_h) // 2), resized)
 
-    # Сохраняем средствами Pillow как одиночную иконку
-    resized.save(output_path, format="ICO", sizes=[(256, 256)])
+    layer.save(output_path, format="ICO", sizes=[(ICO_SIZE, ICO_SIZE)])
 
 
 class BaseConverter(ABC):

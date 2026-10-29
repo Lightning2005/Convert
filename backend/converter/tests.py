@@ -310,6 +310,23 @@ class GenericConvertAPITestCase(ConverterAPITestBase):
         count = int.from_bytes(content[4:6], 'little')
         self.assertEqual(count, 1)
 
+    def test_ico_keeps_source_aspect_ratio(self):
+        """Не квадратная картинка не растягивается: 400x100 → 256x64 по центру."""
+        url = reverse('generic_convert')
+        data = {
+            'file': self.make_upload('wide.png', 'PNG', size=(400, 100)),
+            'target': 'ico',
+        }
+
+        download_response = self.submit_and_download(url, data)
+        content = b''.join(download_response.streaming_content)
+
+        with Image.open(io.BytesIO(content)) as ico:
+            alpha = ico.convert('RGBA').getchannel('A')
+            left, top, right, bottom = alpha.getbbox()
+
+        self.assertEqual((left, top, right - left, bottom - top), (0, 96, 256, 64))
+
     def test_invalid_target_format(self):
         data = {
             'file': self.make_upload('test.png', 'PNG'),

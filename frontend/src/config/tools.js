@@ -20,7 +20,7 @@ export const SUPPORTED_TOOLS = {
     maxFiles: 20,
     icon: '📄',
     category: 'pdf',
-    description: 'Конвертируйте рисунки PNG в PDF с сохранением прозрачности.',
+    description: 'Конвертируйте изображения PNG в PDF. Прозрачный фон при этом становится белым.',
   },
   'webp-to-pdf': {
     source: 'webp',
@@ -88,7 +88,7 @@ export const SUPPORTED_TOOLS = {
     maxFiles: 30,
     icon: '💎',
     category: 'image',
-    description: 'Конвертируйте JPG в PNG для добавления прозрачного фона.',
+    description: 'Конвертируйте JPG в PNG, чтобы дальше редактировать картинку без повторного сжатия.',
   },
   'png-to-webp': {
     source: 'png',

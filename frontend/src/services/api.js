@@ -164,12 +164,49 @@ export async function convertImages(files, target) {
   return { blob, filename, notice };
 }
 
+/** Несколько PDF: каждый нарезается, страницы раскладываются по папкам документов */
+export async function convertPdfFilesToImages(files, target = 'jpg') {
+  const settled = await Promise.allSettled(files.map((file) => convertPdfToImages(file, target)));
+  const done = settled.filter((r) => r.status === 'fulfilled').map((r) => r.value);
+  const failedCount = files.length - done.length;
+  const notice = failedCount > 0
+    ? `Готово не всё: ${failedCount} из ${files.length} документов обработать не удалось.`
+    : '';
+
+  if (done.length === 0) {
+    throw new Error('Ни один PDF не удалось обработать. Проверьте, что файлы не повреждены.');
+  }
+
+  if (done.length === 1) {
+    return { ...done[0], notice };
+  }
+
+  const zip = new JSZip();
+  for (const { blob, filename } of done) {
+    const inner = await JSZip.loadAsync(blob);
+    const folder = filename.replace(/\.zip$/i, '') || 'document';
+    for (const entry of Object.values(inner.files)) {
+      if (entry.dir) continue;
+      zip.file(`${folder}/${entry.name}`, await entry.async('blob'));
+    }
+  }
+
+  return {
+    blob: await zip.generateAsync({ type: 'blob' }),
+    filename: 'converted_pdf_pages.zip',
+    notice,
+  };
+}
+
 export async function runConversion(config, files) {
   if (config.target === 'pdf') {
     return convertImagesToPdf(files);
   }
   if (config.source === 'pdf') {
-    return convertPdfToImages(files[0], config.target);
+    if (files.length === 1) {
+      return convertPdfToImages(files[0], config.target);
+    }
+    return convertPdfFilesToImages(files, config.target);
   }
   if (config.category === 'image') {
     return convertImages(files, config.target);

@@ -155,11 +155,16 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
   );
 
   useEffect(() => {
-    if (preloadedFiles && preloadedFiles.length > 0) {
-      setFiles(preloadedFiles.map((file, idx) => ({
-        id: `preload-${idx}-${file.name}-${file.size}`,
-        file
-      })));
+    if (!preloadedFiles || preloadedFiles.length === 0) return;
+
+    const accepted = preloadedFiles.slice(0, config.maxFiles);
+    setFiles(accepted.map((file, idx) => ({
+      id: `preload-${idx}-${file.name}-${file.size}`,
+      file
+    })));
+
+    if (accepted.length < preloadedFiles.length) {
+      setError(`Этот инструмент принимает не более ${config.maxFiles} файлов, поэтому взяты первые ${accepted.length}.`);
     }
   }, [preloadedFiles, slug]);
 

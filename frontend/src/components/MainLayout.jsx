@@ -32,8 +32,11 @@ export default function MainLayout({ children }) {
   const location = useLocation();
 
   const hideAdsRoutes = ['/privacy', '/contacts'];
-  const showAds = !hideAdsRoutes.includes(location.pathname);
-  const isHomePage = location.pathname === '/';
+  // Статические страницы отдаются и по адресу с завершающим слешем (/privacy/),
+  // поэтому путь нормализуем — иначе правила для рекламы и главная не узнаются
+  const pathname = location.pathname.replace(/\/+$/, '') || '/';
+  const showAds = !hideAdsRoutes.includes(pathname);
+  const isHomePage = pathname === '/';
   const showFloor = showAds && !floorDismissed;
 
   const toolsArray = Object.entries(SUPPORTED_TOOLS).map(([slug, data]) => ({ slug, ...data }));

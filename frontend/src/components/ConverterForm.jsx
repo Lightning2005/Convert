@@ -161,6 +161,7 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef(null);
   const inFlightRef = useRef(false);
+  const abortRef = useRef(null);
 
   const isSortableEnabled = config.targetName?.toUpperCase() === 'PDF';
 
@@ -198,6 +199,11 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
       window.removeEventListener('drop', handleWindowDrop);
     };
   }, []);
+
+  // Уход с экрана (смена инструмента, другой роут) обрывает отправку, опрос
+  // статуса и скачивание: иначе задача продолжает грузить браузер результатом,
+  // который уже некому показать.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const handleDrag = (e) => {
     e.preventDefault();
@@ -302,6 +308,8 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
   const handleSubmit = async () => {
     if (files.length === 0 || inFlightRef.current) return;
 
+    const controller = new AbortController();
+    abortRef.current = controller;
     inFlightRef.current = true;
     setIsLoading(true);
     setError('');
@@ -309,13 +317,18 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
 
     try {
       const rawFilesArray = files.map(item => item.file);
-      const result = await runConversion(config, rawFilesArray);
+      const result = await runConversion(config, rawFilesArray, controller.signal);
+      // Смена инструмента или роута снимает форму: скачивание и баннеры
+      // прилетели бы уже в несуществующий экран.
+      if (controller.signal.aborted) return;
       downloadBlob(result.blob, result.filename);
       if (result.notice) setNotice(result.notice);
     } catch (err) {
+      if (controller.signal.aborted) return;
       console.error(err);
       setError(humanizeError(err.message));
     } finally {
+      abortRef.current = null;
       inFlightRef.current = false;
       setIsLoading(false);
     }

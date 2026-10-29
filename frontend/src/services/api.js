@@ -8,10 +8,11 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 const POLL_INTERVAL_MS = 1500;
 const POLL_MAX_ATTEMPTS = 60; // ~90 секунд ожидания
 
-async function postFormData(endpoint, formData) {
+async function postFormData(endpoint, formData, signal) {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     method: 'POST',
     body: formData,
+    signal,
   });
 
   if (!response.ok) {
@@ -29,12 +30,15 @@ const TERMINAL = new Set(['SUCCESS', 'FAILURE', 'UNKNOWN']);
  * Пакетный опрос: батч из 50 файлов задаёт один запрос на цикл вместо пятидесяти.
  * Возвращает завершившие задачи и те, что не успели за отведённое время.
  */
-async function pollTasks(taskIds, { intervalMs = POLL_INTERVAL_MS, maxAttempts = POLL_MAX_ATTEMPTS } = {}) {
+async function pollTasks(taskIds, { intervalMs = POLL_INTERVAL_MS, maxAttempts = POLL_MAX_ATTEMPTS, signal } = {}) {
   const pending = [...new Set(taskIds)];
   const finished = new Map();
 
   for (let attempt = 0; attempt < maxAttempts && pending.length > 0; attempt++) {
-    const response = await fetch(`${API_BASE_URL}/api/status/batch/?ids=${encodeURIComponent(pending.join(','))}`);
+    const response = await fetch(
+      `${API_BASE_URL}/api/status/batch/?ids=${encodeURIComponent(pending.join(','))}`,
+      { signal },
+    );
 
     if (!response.ok) {
       throw new Error('Ошибка при проверке статуса задач на сервере.');
@@ -54,8 +58,8 @@ async function pollTasks(taskIds, { intervalMs = POLL_INTERVAL_MS, maxAttempts =
 }
 
 /** Готовый файл задачи. Бэкенд отдаёт путь без хоста — база на стороне фронтенда. */
-async function downloadResult(task) {
-  const fileResponse = await fetch(`${API_BASE_URL}${task.download_url}`);
+async function downloadResult(task, signal) {
+  const fileResponse = await fetch(`${API_BASE_URL}${task.download_url}`, { signal });
   if (!fileResponse.ok) throw new Error('Не удалось скачать готовый файл.');
   return fileResponse.blob();
 }
@@ -66,9 +70,9 @@ function taskError(task) {
 }
 
 /** Один файл → одна задача → готовый Blob. */
-async function submitAndAwait(submit) {
-  const { task_id } = await submit();
-  const { finished, timedOut } = await pollTasks([task_id]);
+async function submitAndAwait(submit, signal) {
+  const { task_id } = await submit(signal);
+  const { finished, timedOut } = await pollTasks([task_id], { signal });
   const task = finished.get(task_id);
 
   if (!task) {
@@ -78,7 +82,7 @@ async function submitAndAwait(submit) {
   }
   if (task.status !== 'SUCCESS') throw new Error(taskError(task));
 
-  return downloadResult(task);
+  return downloadResult(task, signal);
 }
 
 export function swapExtension(filename, newExt) {
@@ -114,11 +118,14 @@ export function downloadBlob(blob, filename) {
 }
 
 /** Несколько изображений → один PDF */
-export async function convertImagesToPdf(files) {
+export async function convertImagesToPdf(files, signal) {
   const formData = new FormData();
   files.forEach((file) => formData.append('images', file));
 
-  const blob = await submitAndAwait(() => postFormData('/api/images-to-pdf/', formData));
+  const blob = await submitAndAwait(
+    (abortSignal) => postFormData('/api/images-to-pdf/', formData, abortSignal),
+    signal,
+  );
 
   const filename = files.length === 1
     ? swapExtension(files[0].name, 'pdf')
@@ -135,8 +142,11 @@ function pdfFormData(pdfFile, target) {
 }
 
 /** PDF → ZIP с изображениями */
-export async function convertPdfToImages(pdfFile, target = 'jpg') {
-  const blob = await submitAndAwait(() => postFormData('/api/pdf-to-images/', pdfFormData(pdfFile, target)));
+export async function convertPdfToImages(pdfFile, target = 'jpg', signal) {
+  const blob = await submitAndAwait(
+    (abortSignal) => postFormData('/api/pdf-to-images/', pdfFormData(pdfFile, target), abortSignal),
+    signal,
+  );
 
   const baseName = pdfFile.name.replace(/\.pdf$/i, '');
   const filename = `${baseName}_pages.zip`;
@@ -154,8 +164,11 @@ function imageFormData(file, target) {
 const imageTargetExt = (target) => (target === 'jpeg' ? 'jpg' : target);
 
 /** Одно изображение → другой формат */
-export async function convertImage(file, target) {
-  const blob = await submitAndAwait(() => postFormData('/api/convert/', imageFormData(file, target)));
+export async function convertImage(file, target, signal) {
+  const blob = await submitAndAwait(
+    (abortSignal) => postFormData('/api/convert/', imageFormData(file, target), abortSignal),
+    signal,
+  );
 
   return { blob, filename: swapExtension(file.name, imageTargetExt(target)) };
 }
@@ -164,19 +177,19 @@ export async function convertImage(file, target) {
  * Общий путь батча: сначала отправляем все файлы, дальше следим за всеми
  * задачами одним пакетным запросом за цикл и скачиваем успевшие.
  */
-async function runBatch(files, { endpoint, makeForm, makeName, unit, emptyError, merge }) {
+async function runBatch(files, { endpoint, makeForm, makeName, unit, emptyError, merge, signal }) {
   const posted = await Promise.allSettled(files.map(async (file) => {
-    const { task_id } = await postFormData(endpoint, makeForm(file));
+    const { task_id } = await postFormData(endpoint, makeForm(file), signal);
     return { file, task_id };
   }));
   const jobs = posted.filter((r) => r.status === 'fulfilled').map((r) => r.value);
-  const { finished, timedOut } = await pollTasks(jobs.map((job) => job.task_id));
+  const { finished, timedOut } = await pollTasks(jobs.map((job) => job.task_id), { signal });
 
   const results = await Promise.allSettled(jobs.map(async (job) => {
     const task = finished.get(job.task_id);
     if (!task) throw new Error('Задача не вернула результат.');
     if (task.status !== 'SUCCESS') throw new Error(taskError(task));
-    return { blob: await downloadResult(task), filename: makeName(job.file) };
+    return { blob: await downloadResult(task, signal), filename: makeName(job.file) };
   }));
   const done = results.filter((r) => r.status === 'fulfilled').map((r) => r.value);
 
@@ -199,9 +212,9 @@ async function runBatch(files, { endpoint, makeForm, makeName, unit, emptyError,
 }
 
 /** Параллельная обработка нескольких изображений с частичным результатом */
-export async function convertImages(files, target) {
+export async function convertImages(files, target, signal) {
   if (files.length === 1) {
-    return convertImage(files[0], target);
+    return convertImage(files[0], target, signal);
   }
   const ext = imageTargetExt(target);
 
@@ -211,6 +224,7 @@ export async function convertImages(files, target) {
     makeName: (file) => swapExtension(file.name, ext),
     unit: 'файлов',
     emptyError: 'Ни один файл не удалось конвертировать. Проверьте, что они не повреждены.',
+    signal,
     merge: async (done) => {
       const zip = new JSZip();
       const used = new Set();
@@ -227,9 +241,9 @@ export async function convertImages(files, target) {
 }
 
 /** Несколько PDF: каждый нарезается, страницы раскладываются по папкам документов */
-export async function convertPdfFilesToImages(files, target = 'jpg') {
+export async function convertPdfFilesToImages(files, target = 'jpg', signal) {
   if (files.length === 1) {
-    return convertPdfToImages(files[0], target);
+    return convertPdfToImages(files[0], target, signal);
   }
 
   return runBatch(files, {
@@ -238,6 +252,7 @@ export async function convertPdfFilesToImages(files, target = 'jpg') {
     makeName: (file) => `${file.name.replace(/\.pdf$/i, '')}_pages.zip`,
     unit: 'документов',
     emptyError: 'Ни один PDF не удалось обработать. Проверьте, что файлы не повреждены.',
+    signal,
     merge: async (done) => {
       const zip = new JSZip();
       for (const { blob, filename } of done) {
@@ -257,18 +272,18 @@ export async function convertPdfFilesToImages(files, target = 'jpg') {
   });
 }
 
-export async function runConversion(config, files) {
+export async function runConversion(config, files, signal) {
   if (config.target === 'pdf') {
-    return convertImagesToPdf(files);
+    return convertImagesToPdf(files, signal);
   }
   if (config.source === 'pdf') {
     if (files.length === 1) {
-      return convertPdfToImages(files[0], config.target);
+      return convertPdfToImages(files[0], config.target, signal);
     }
-    return convertPdfFilesToImages(files, config.target);
+    return convertPdfFilesToImages(files, config.target, signal);
   }
   if (config.category === 'image') {
-    return convertImages(files, config.target);
+    return convertImages(files, config.target, signal);
   }
   throw new Error('Данное направление конвертации временно не поддерживается сервером.');
 }

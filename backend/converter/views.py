@@ -14,6 +14,7 @@ from .strategies import ConverterFactory
 from .tasks import images_to_pdf_task, pdf_to_images_task, generic_convert_task
 
 MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB
+MAX_FILES_PER_REQUEST = 50
 SUPPORTED_IMAGE_EXTENSIONS = {
     '.jpg', '.jpeg', '.png', '.webp',
     '.tiff', '.tif', '.ico', '.bmp', '.heic'
@@ -49,6 +50,12 @@ class ImagesToPdfView(APIView):
 
         if not uploaded_images:
             return Response({"error": "Файлы не переданы"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(uploaded_images) > MAX_FILES_PER_REQUEST:
+            return Response(
+                {"error": f"Слишком много файлов в одном запросе: максимум {MAX_FILES_PER_REQUEST}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         total_size = 0
         for img in uploaded_images:

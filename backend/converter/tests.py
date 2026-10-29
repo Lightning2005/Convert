@@ -155,6 +155,18 @@ class ImagesToPdfAPITestCase(ConverterAPITestBase):
             {'error': 'Превышен суммарный лимит размера файлов (макс. 50 МБ)'},
         )
 
+    def test_images_to_pdf_too_many_files(self):
+        url = reverse('images_to_pdf')
+        data = {'images': [self.make_upload(f'test{i}.jpg', 'JPEG') for i in range(51)]}
+
+        response = self.client.post(url, data, format='multipart')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.data,
+            {'error': 'Слишком много файлов в одном запросе: максимум 50'},
+        )
+
 
 @override_settings(**CELERY_TEST_SETTINGS)
 class PdfToImagesAPITestCase(ConverterAPITestBase):

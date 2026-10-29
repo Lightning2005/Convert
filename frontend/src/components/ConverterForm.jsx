@@ -217,9 +217,15 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
       return allowedExts.includes(ext);
     });
 
+    const rejected = newFiles.length - filtered.length;
+
     if (filtered.length === 0) {
       setError(`Пожалуйста, выберите файлы в формате ${config.sourceName}`);
       return;
+    }
+
+    if (rejected > 0) {
+      setError(`Отброшено файлов: ${rejected}. Поддерживается только ${config.sourceName}.`);
     }
 
     setFiles((prev) => {

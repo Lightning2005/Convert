@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { SUPPORTED_TOOLS } from '../config/tools';
+import CookieNotice from './CookieNotice';
 import logoIcon from '../assets/logo.svg';
 
 const FLOOR_AD_KEY = 'floor-ad-dismissed';
@@ -196,6 +197,8 @@ export default function MainLayout({ children }) {
           </button>
         </div>
       </header>
+
+      <CookieNotice />
 
       {/* ОСНОВНОЙ КОНТЕНТЕР */}
       <div className="flex-1 w-full flex p-6 gap-6 justify-between items-start relative max-w-[1600px] mx-auto py-12">

@@ -18,4 +18,14 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
   },
+  {
+    // Конфиг сборки и prerender-скрипт выполняются в Node, а не в браузере.
+    files: ['vite.config.js', 'scripts/**/*.mjs'],
+    languageOptions: { globals: globals.node },
+  },
+  {
+    // Эти модули читаются и сборщиком (Node), и клиентом (браузер).
+    files: ['src/seo.js', 'src/entry-server.jsx'],
+    languageOptions: { globals: { ...globals.browser, ...globals.node } },
+  },
 ])

@@ -348,3 +348,56 @@ class TaskSystemAPITestCase(ConverterAPITestBase):
         url = reverse('file_download', kwargs={'filename': 'nonexistent_file.pdf'})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
+
+    def submit_conversion(self, **data):
+        response = self.client.post(reverse('generic_convert'), data, format='multipart')
+        self.assertEqual(response.status_code, 202, response.data)
+        return response.data['task_id']
+
+    def test_unknown_task_id_is_not_pending(self):
+        """Celery отвечает PENDING и на задачу в очереди, и на выдуманный id."""
+        response = self.client.get(reverse('task_status', kwargs={'task_id': 'no-such-task'}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['status'], 'UNKNOWN')
+        self.assertIn('error', response.data)
+
+    def test_queued_task_stays_pending(self):
+        from .views import mark_task_queued
+
+        mark_task_queued('still-in-queue')
+        response = self.client.get(reverse('task_status', kwargs={'task_id': 'still-in-queue'}))
+
+        self.assertEqual(response.data['status'], 'PENDING')
+
+    def test_batch_status_returns_snapshot_per_id(self):
+        done_id = self.submit_conversion(file=self.make_upload('test.png', 'PNG'), target='jpg')
+
+        response = self.client.get(reverse('task_status_batch'), {'ids': f'{done_id},missing-id'})
+        self.assertEqual(response.status_code, 200)
+
+        by_id = {task['task_id']: task for task in response.data['tasks']}
+        self.assertEqual(set(by_id), {done_id, 'missing-id'})
+        self.assertEqual(by_id[done_id]['status'], 'SUCCESS')
+        self.assertTrue(by_id[done_id]['download_url'].startswith('/api/download/'))
+        self.assertEqual(by_id['missing-id']['status'], 'UNKNOWN')
+
+    def test_batch_status_deduplicates_ids(self):
+        task_id = self.submit_conversion(file=self.make_upload('test.png', 'PNG'), target='jpg')
+
+        response = self.client.get(reverse('task_status_batch'), {'ids': f'{task_id},{task_id}'})
+
+        self.assertEqual(len(response.data['tasks']), 1)
+
+    def test_batch_status_requires_ids(self):
+        response = self.client.get(reverse('task_status_batch'), {'ids': ''})
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_batch_status_limits_number_of_ids(self):
+        ids = ','.join(f'task-{i}' for i in range(101))
+
+        response = self.client.get(reverse('task_status_batch'), {'ids': ids})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('максимум 100', response.data['error'])

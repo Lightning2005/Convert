@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser
 from rest_framework import status
+from django.core.cache import cache
 from django.core.files.storage import FileSystemStorage
 from django.conf import settings  # Добавили импорт настроек
 from django.http import FileResponse, Http404
@@ -15,6 +16,7 @@ from .tasks import images_to_pdf_task, pdf_to_images_task, generic_convert_task
 
 MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB
 MAX_FILES_PER_REQUEST = 50
+MAX_TASK_IDS_PER_QUERY = 100
 SUPPORTED_IMAGE_EXTENSIONS = {
     '.jpg', '.jpeg', '.png', '.webp',
     '.tiff', '.tif', '.ico', '.bmp', '.heic'
@@ -36,6 +38,40 @@ def save_uploaded_file(file_obj) -> str:
     fs = FileSystemStorage(location=TMP_DIR)
     saved_name = fs.save(unique_filename, file_obj)
     return fs.path(saved_name)
+
+
+# Пока воркер не начал задачу, Celery отдаёт по её id состояние PENDING — точно
+# такое же, как по несуществующему id. Метка в кэше различает их: «ждёт своей
+# очереди» против «такой задачи мы никогда не принимали».
+QUEUED_MARK_TTL = 2 * 3600
+
+
+def mark_task_queued(task_id):
+    cache.set(f'queued:{task_id}', 1, QUEUED_MARK_TTL)
+
+
+def task_snapshot(task_id):
+    """Состояние задачи в том виде, в котором его читает фронтенд."""
+    result = AsyncResult(task_id)
+    snapshot = {'task_id': task_id, 'status': result.status}
+
+    if result.status == 'SUCCESS':
+        payload = result.result or {}
+        if payload.get('status') == 'SUCCESS':
+            filename = payload.get('result_file')
+            # Отдаём путь, а не absolute URI: адрес сборки ответа зависит от
+            # заголовка Host, а фронтенд сам знает, откуда он качает.
+            snapshot['download_url'] = reverse('file_download', kwargs={'filename': filename})
+        else:
+            snapshot['status'] = 'FAILURE'
+            snapshot['error'] = payload.get('error', 'Unknown error during conversion')
+    elif result.status == 'FAILURE':
+        snapshot['error'] = str(result.info)
+    elif not cache.get(f'queued:{task_id}'):
+        snapshot['status'] = 'UNKNOWN'
+        snapshot['error'] = 'Задача не найдена: возможно, её id устарел.'
+
+    return snapshot
 
 
 # ==========================================
@@ -70,6 +106,7 @@ class ImagesToPdfView(APIView):
         output_filename = f"converted_images_{uuid.uuid4()}.pdf"
 
         task = images_to_pdf_task.delay(saved_paths, output_filename)
+        mark_task_queued(task.id)
 
         return Response({
             "message": "Изображения приняты в обработку.",
@@ -100,6 +137,7 @@ class PdfToImagesView(APIView):
         output_filename = f"converted_pages_{uuid.uuid4()}.zip"
 
         task = pdf_to_images_task.delay(pdf_path, output_filename, target_format)
+        mark_task_queued(task.id)
 
         return Response({
             "message": "PDF принят в обработку.",
@@ -133,6 +171,7 @@ class GenericConvertView(APIView):
         output_filename = f"converted_file_{uuid.uuid4()}.{target_format}"
 
         task = generic_convert_task.delay(input_path, output_filename, target_format)
+        mark_task_queued(task.id)
 
         return Response({
             "message": "Файл принят в обработку.",
@@ -146,29 +185,26 @@ class GenericConvertView(APIView):
 
 class TaskStatusView(APIView):
     def get(self, request, task_id, *args, **kwargs):
-        task_result = AsyncResult(task_id)
-        response_data = {
-            "task_id": task_id,
-            "status": task_result.status
-        }
+        return Response(task_snapshot(task_id), status=status.HTTP_200_OK)
 
-        if task_result.status == 'SUCCESS':
-            result_data = task_result.result
-            if result_data and result_data.get("status") == "SUCCESS":
-                filename = result_data.get("result_file")
-                # Отдаём путь, а не absolute URI: адрес сборки ответа зависит от
-                # заголовка Host, а фронтенд сам знает, откуда он качает.
-                response_data["download_url"] = reverse(
-                    'file_download', kwargs={'filename': filename}
-                )
-            else:
-                response_data["status"] = "FAILURE"
-                response_data["error"] = result_data.get("error", "Unknown error during conversion")
 
-        elif task_result.status == 'FAILURE':
-            response_data["error"] = str(task_result.info)
+class BatchTaskStatusView(APIView):
+    """Один запрос вместо N: батч из 50 файлов опрашивал статус 50 раз за цикл."""
 
-        return Response(response_data, status=status.HTTP_200_OK)
+    def get(self, request, *args, **kwargs):
+        raw = request.GET.get('ids', '')
+        ids = list(dict.fromkeys(part for part in raw.split(',') if part))
+
+        if not ids:
+            return Response({"error": "Не передан ни один task_id"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(ids) > MAX_TASK_IDS_PER_QUERY:
+            return Response(
+                {"error": f"Слишком много task_id в одном запросе: максимум {MAX_TASK_IDS_PER_QUERY}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response({"tasks": [task_snapshot(task_id) for task_id in ids]}, status=status.HTTP_200_OK)
 
 
 class FileDownloadView(APIView):

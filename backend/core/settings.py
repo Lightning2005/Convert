@@ -173,6 +173,17 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 
+# Кэш на redis: в нём метки «задача поставлена в очередь», без них статус
+# неизвестного task_id неотличим от статуса задачи, которая ещё не началась.
+# Второй номер базы — чтобы не мешать ячейкам Celery в первой.
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': os.environ.get('DJANGO_CACHE_URL', 'redis://127.0.0.1:6379/1'),
+        'KEY_PREFIX': 'konvert',
+    }
+}
+
 # Ограничитель размера тела запроса уже есть в converter/views.py (50 МБ),
 # поэтому здесь важно другое: пока порог был 50 МБ, Django собирал всё тело
 # запроса в памяти. Замер: запрос на 40.5 МБ, который сервер отверг по

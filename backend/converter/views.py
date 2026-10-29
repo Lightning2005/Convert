@@ -22,6 +22,22 @@ SUPPORTED_IMAGE_EXTENSIONS = {
     '.tiff', '.tif', '.ico', '.bmp', '.heic'
 }
 
+# Типы для готовых файлов: перечисляем явно, потому что встроенный в Python
+# mimetypes не знает .webp, а системных mime-таблиц в образе нет — иначе
+# FileResponse отдавал application/octet-stream и просмотрщик не понимал файл.
+DOWNLOAD_CONTENT_TYPES = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+    '.tiff': 'image/tiff',
+    '.ico': 'image/vnd.microsoft.icon',
+    '.bmp': 'image/bmp',
+    '.heic': 'image/heic',
+    '.pdf': 'application/pdf',
+    '.zip': 'application/zip',
+}
+
 # Динамический путь для совместимости Linux (Docker) / Windows
 TMP_DIR = os.path.join(settings.BASE_DIR, 'tmp_files')
 
@@ -215,5 +231,11 @@ class FileDownloadView(APIView):
         if not os.path.exists(file_path):
             raise Http404("Файл не найден или был удален по истечении времени.")
 
-        response = FileResponse(open(file_path, 'rb'), as_attachment=True, filename=clean_filename)
+        extension = os.path.splitext(clean_filename)[1].lower()
+        response = FileResponse(
+            open(file_path, 'rb'),
+            as_attachment=True,
+            filename=clean_filename,
+            content_type=DOWNLOAD_CONTENT_TYPES.get(extension),
+        )
         return response

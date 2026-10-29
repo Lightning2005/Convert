@@ -107,6 +107,7 @@ class ImagesToPdfAPITestCase(ConverterAPITestBase):
 
         self.assertTrue(len(pdf_content) > 0)
         self.assertEqual(pdf_content[:4], b'%PDF')
+        self.assertEqual(download_response['Content-Type'], 'application/pdf')
 
     def test_pdf_all_pages_use_portrait_a4(self):
         """Portrait и landscape изображения → все страницы portrait A4."""
@@ -196,6 +197,7 @@ class PdfToImagesAPITestCase(ConverterAPITestBase):
         zip_content = b''.join(download_response.streaming_content)
 
         self.assertTrue(len(zip_content) > 0)
+        self.assertEqual(download_response['Content-Type'], 'application/zip')
         with zipfile.ZipFile(io.BytesIO(zip_content)) as archive:
             self.assertTrue(any(name.endswith('.jpg') for name in archive.namelist()))
 
@@ -341,6 +343,24 @@ class GenericConvertAPITestCase(ConverterAPITestBase):
         response = self.client.post(self.url, {}, format='multipart')
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data, {'error': 'Файл не передан'})
+
+    def test_downloaded_files_have_explicit_content_type(self):
+        """Без явного типа .webp доезжает как application/octet-stream."""
+        expected = {
+            'webp': 'image/webp',
+            'png': 'image/png',
+            'jpg': 'image/jpeg',
+            'ico': 'image/vnd.microsoft.icon',
+            'heic': 'image/heic',
+        }
+
+        for target, content_type in expected.items():
+            with self.subTest(target=target):
+                data = {'file': self.make_upload('test.png', 'PNG'), 'target': target}
+                download_response = self.submit_and_download(self.url, data)
+
+                self.assertEqual(download_response['Content-Type'], content_type)
+                self.assertIn('attachment', download_response['Content-Disposition'])
 
     def test_generic_convert_file_too_large(self):
         data = {

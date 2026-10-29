@@ -13,7 +13,7 @@ export default function ContactsPage() {
         <div className="bg-surface-muted p-6 rounded-2xl border border-ui-border/60">
           <span className="text-2xl block mb-2">✉️</span>
           <h3 className="font-bold text-text-primary text-sm uppercase tracking-wider mb-1">Электронная почта</h3>
-          <p className="text-secondary text-base font-semibold">
+          <p className="text-text-secondary text-base font-semibold">
             bykadorovsergey@mail.ru
           </p>
           <p className="text-xs text-text-secondary mt-2">Время ответа составляет от 12 до 24 часов.</p>

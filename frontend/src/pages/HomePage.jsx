@@ -297,15 +297,18 @@ export default function HomePage() {
                   </svg>
                 </button>
 
-                {/* Плавное раскрытие ответа */}
+                {/* Плавное раскрытие ответа: высота берётся из содержимого,
+                    поэтому длинный текст не обрезается на узких экранах */}
                 <div
-                  className={`transition-all duration-300 ease-in-out overflow-hidden ${
-                    isOpen ? 'max-h-48 border-t border-ui-border bg-surface-muted/30' : 'max-h-0'
+                  className={`grid transition-all duration-300 ease-in-out ${
+                    isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
                   }`}
                 >
-                  <p className="p-5 text-sm text-text-secondary leading-relaxed">
-                    {item.a}
-                  </p>
+                  <div className={`overflow-hidden ${isOpen ? 'border-t border-ui-border bg-surface-muted/30' : ''}`}>
+                    <p className="p-5 text-sm text-text-secondary leading-relaxed">
+                      {item.a}
+                    </p>
+                  </div>
                 </div>
               </div>
             );

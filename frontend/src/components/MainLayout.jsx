@@ -44,7 +44,7 @@ export default function MainLayout({ children }) {
     };
   }, [mobileMenuOpen]);
 
-  // Клик снаружи десктопных дропдаунов
+  // Клик снаружи десктопных дропдаунов (и по тач-устройствам)
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -55,8 +55,20 @@ export default function MainLayout({ children }) {
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  // Esc закрывает дропдауны и мобильное меню
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key !== 'Escape') return;
+      setActiveDropdown(null);
+      setMobileMenuOpen(false);
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const dropdownClassName = "absolute left-1/2 -translate-x-1/2 mt-3 w-[25rem] max-h-[70vh] overflow-y-auto grid grid-cols-2 gap-x-2 gap-y-0.5 bg-main rounded-xl border border-ui-border p-2 z-50 animate-fadeIn text-text-primary shadow-lg [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-ui-border [&::-webkit-scrollbar-thumb]:rounded-full";
@@ -89,7 +101,10 @@ export default function MainLayout({ children }) {
           <div className="relative" ref={pdfRef}>
             <button
               onClick={() => toggleDropdown('pdf')}
-              className={`hover:text-primary flex items-center gap-1 transition focus:outline-none ${activeDropdown === 'pdf' ? 'text-text-secondary' : ''}`}
+              aria-haspopup="true"
+              aria-expanded={activeDropdown === 'pdf'}
+              aria-controls="pdf-tools-menu"
+              className={`hover:text-primary flex items-center gap-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded ${activeDropdown === 'pdf' ? 'text-text-secondary' : ''}`}
             >
               Инструменты PDF
               <svg className={`w-3 h-3 transition-transform duration-200 fill-current ${activeDropdown === 'pdf' ? 'rotate-180' : ''}`} viewBox="0 0 20 20">
@@ -98,7 +113,7 @@ export default function MainLayout({ children }) {
             </button>
 
             {activeDropdown === 'pdf' && (
-              <div className={dropdownClassName}>
+              <div id="pdf-tools-menu" className={dropdownClassName}>
                 {pdfTools.map((tool) => (
                   <Link
                     key={tool.slug}
@@ -117,7 +132,10 @@ export default function MainLayout({ children }) {
           <div className="relative" ref={imageRef}>
             <button
               onClick={() => toggleDropdown('image')}
-              className={`hover:text-primary flex items-center gap-1 transition focus:outline-none ${activeDropdown === 'image' ? 'text-text-secondary' : ''}`}
+              aria-haspopup="true"
+              aria-expanded={activeDropdown === 'image'}
+              aria-controls="image-tools-menu"
+              className={`hover:text-primary flex items-center gap-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded ${activeDropdown === 'image' ? 'text-text-secondary' : ''}`}
             >
               Конвертер картинок
               <svg className={`w-3 h-3 transition-transform duration-200 fill-current ${activeDropdown === 'image' ? 'rotate-180' : ''}`} viewBox="0 0 20 20">
@@ -126,7 +144,7 @@ export default function MainLayout({ children }) {
             </button>
 
             {activeDropdown === 'image' && (
-              <div className={dropdownClassName}>
+              <div id="image-tools-menu" className={dropdownClassName}>
                 {imageTools.map((tool) => (
                   <Link
                     key={tool.slug}
@@ -147,8 +165,10 @@ export default function MainLayout({ children }) {
           {/* Кнопка гамбургера (мобильное меню) */}
           <button
             onClick={() => setMobileMenuOpen(true)}
-            className="md:hidden p-2 hover:bg-surface-muted rounded-lg transition text-text-secondary flex items-center justify-center focus:outline-none"
+            className="md:hidden p-2 hover:bg-surface-muted rounded-lg transition text-text-secondary flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             aria-label="Открыть меню"
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-drawer"
           >
             <svg className="w-6 h-6 stroke-current fill-none" viewBox="0 0 24 24" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -210,14 +230,14 @@ export default function MainLayout({ children }) {
           />
 
           {/* Выезжающая панель */}
-          <nav className="relative w-full max-w-[20rem] h-full bg-main border-l border-ui-border p-6 overflow-y-auto flex flex-col gap-6 shadow-2xl z-10 text-text-primary [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-ui-border [&::-webkit-scrollbar-thumb]:rounded-full animate-fadeIn">
+          <nav id="mobile-drawer" aria-label="Мобильная навигация" className="relative w-full max-w-[20rem] h-full bg-main border-l border-ui-border p-6 overflow-y-auto flex flex-col gap-6 shadow-2xl z-10 text-text-primary [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-ui-border [&::-webkit-scrollbar-thumb]:rounded-full animate-fadeIn">
 
             {/* Шапка бокового меню */}
             <div className="flex justify-between items-center pb-4 border-b border-ui-border">
               <span className="font-bold text-lg tracking-tight">Навигация</span>
               <button
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-2 hover:bg-surface-muted rounded-lg transition text-text-secondary focus:outline-none"
+                className="p-2 hover:bg-surface-muted rounded-lg transition text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 aria-label="Закрыть меню"
               >
                 <svg className="w-5 h-5 stroke-current fill-none" viewBox="0 0 24 24" strokeWidth="2">
@@ -233,7 +253,9 @@ export default function MainLayout({ children }) {
               <div className="flex flex-col">
                 <button
                   onClick={() => setMobilePdfOpen(!mobilePdfOpen)}
-                  className="flex justify-between items-center w-full py-2.5 font-medium text-left text-text-primary hover:text-primary transition focus:outline-none"
+                  aria-expanded={mobilePdfOpen}
+                  aria-controls="mobile-pdf-menu"
+                  className="flex justify-between items-center w-full py-2.5 font-medium text-left text-text-primary hover:text-primary transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
                 >
                   <span>Инструменты PDF</span>
                   <svg className={`w-4 h-4 transition-transform duration-200 fill-current text-text-secondary ${mobilePdfOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20">
@@ -242,7 +264,7 @@ export default function MainLayout({ children }) {
                 </button>
 
                 {mobilePdfOpen && (
-                  <div className="flex flex-col pl-3 border-l border-ui-border mt-1 gap-1 animate-fadeIn">
+                  <div id="mobile-pdf-menu" className="flex flex-col pl-3 border-l border-ui-border mt-1 gap-1 animate-fadeIn">
                     {pdfTools.map((tool) => (
                       <Link
                         key={tool.slug}
@@ -260,7 +282,9 @@ export default function MainLayout({ children }) {
               <div className="flex flex-col">
                 <button
                   onClick={() => setMobileImageOpen(!mobileImageOpen)}
-                  className="flex justify-between items-center w-full py-2.5 font-medium text-left text-text-primary hover:text-primary transition focus:outline-none"
+                  aria-expanded={mobileImageOpen}
+                  aria-controls="mobile-image-menu"
+                  className="flex justify-between items-center w-full py-2.5 font-medium text-left text-text-primary hover:text-primary transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
                 >
                   <span>Конвертер картинок</span>
                   <svg className={`w-4 h-4 transition-transform duration-200 fill-current text-text-secondary ${mobileImageOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20">
@@ -269,7 +293,7 @@ export default function MainLayout({ children }) {
                 </button>
 
                 {mobileImageOpen && (
-                  <div className="flex flex-col pl-3 border-l border-ui-border mt-1 gap-1 animate-fadeIn">
+                  <div id="mobile-image-menu" className="flex flex-col pl-3 border-l border-ui-border mt-1 gap-1 animate-fadeIn">
                     {imageTools.map((tool) => (
                       <Link
                         key={tool.slug}
@@ -283,6 +307,19 @@ export default function MainLayout({ children }) {
                 )}
               </div>
 
+            </div>
+
+            {/* Системные ссылки: на мобильном drawer — единственный верхний вход в них */}
+            <div className="flex flex-col gap-1 pt-4 border-t border-ui-border mt-auto">
+              <Link to="/" className="py-2 text-sm font-medium text-text-primary hover:text-primary transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
+                Главная
+              </Link>
+              <Link to="/contacts" className="py-2 text-sm text-text-secondary hover:text-primary transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
+                Контакты
+              </Link>
+              <Link to="/privacy" className="py-2 text-sm text-text-secondary hover:text-primary transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
+                Политика конфиденциальности
+              </Link>
             </div>
           </nav>
         </div>

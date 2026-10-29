@@ -140,10 +140,19 @@ export default function HomePage() {
       <div className="bg-main rounded-2xl border border-ui-border p-8 mb-16">
         {selectedFiles.length === 0 ? (
           <div
+            role="button"
+            tabIndex={0}
+            aria-label="Добавить файлы для конвертации"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-ui-border rounded-xl p-12 text-center cursor-pointer hover:border-text-secondary/40 transition-colors bg-surface-muted group"
+            className="border-2 border-dashed border-ui-border rounded-xl p-12 text-center cursor-pointer hover:border-text-secondary/40 transition-colors bg-surface-muted group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <input
               type="file"

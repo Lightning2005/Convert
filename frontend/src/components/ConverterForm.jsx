@@ -347,12 +347,23 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
       />
 
       <div
+        role="button"
+        tabIndex={isLoading ? -1 : 0}
+        aria-disabled={isLoading}
+        aria-label={`Добавить файлы (${config.sourceName}) для конвертации в ${config.targetName}, максимум ${config.maxFiles} шт.`}
+        onKeyDown={(e) => {
+          if (isLoading) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onButtonClick();
+          }
+        }}
         onDragEnter={handleDrag}
         onDragOver={handleDrag}
         onDragLeave={handleDrag}
         onDrop={handleDrop}
         onClick={onButtonClick}
-        className={`w-full max-w-xl aspect-video border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center p-6 cursor-pointer transition select-none ${
+        className={`w-full max-w-xl aspect-video border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center p-6 cursor-pointer transition select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
           isDragActive
             ? 'bg-primary/5 border-primary text-primary scale-[1.01]'
             : 'bg-surface-muted border-ui-border text-text-secondary hover:bg-surface-muted/80 hover:border-text-secondary/40'

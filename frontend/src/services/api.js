@@ -55,6 +55,22 @@ export function swapExtension(filename, newExt) {
   return `${base}.${newExt}`;
 }
 
+/** Не даёт файлам с одинаковыми именами затереть друг друга в архиве */
+function uniqueName(used, name) {
+  if (!used.has(name)) {
+    used.add(name);
+    return name;
+  }
+  const dot = name.lastIndexOf('.');
+  const base = dot > 0 ? name.slice(0, dot) : name;
+  const ext = dot > 0 ? name.slice(dot) : '';
+  let index = 2;
+  let candidate = `${base} (${index})${ext}`;
+  while (used.has(candidate)) candidate = `${base} (${++index})${ext}`;
+  used.add(candidate);
+  return candidate;
+}
+
 export function downloadBlob(blob, filename) {
   const downloadUrl = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -114,25 +130,38 @@ export async function convertImage(file, target) {
   return { blob, filename };
 }
 
-/** Параллельная обработка нескольких изображений */
+/** Параллельная обработка нескольких изображений с частичным результатом */
 export async function convertImages(files, target) {
   if (files.length === 1) {
     return convertImage(files[0], target);
   }
 
-  const conversionPromises = files.map((file) => convertImage(file, target));
-  const results = await Promise.all(conversionPromises);
+  const settled = await Promise.allSettled(files.map((file) => convertImage(file, target)));
+  const done = settled.filter((r) => r.status === 'fulfilled').map((r) => r.value);
+  const failedCount = files.length - done.length;
+  const notice = failedCount > 0
+    ? `Готово не всё: ${failedCount} из ${files.length} файлов обработать не удалось.`
+    : '';
+
+  if (done.length === 0) {
+    throw new Error('Ни один файл не удалось конвертировать. Проверьте, что они не повреждены.');
+  }
+
+  if (done.length === 1) {
+    return { ...done[0], notice };
+  }
 
   const zip = new JSZip();
-  results.forEach(({ blob, filename }) => {
-    zip.file(filename, blob);
+  const used = new Set();
+  done.forEach(({ blob, filename }) => {
+    zip.file(uniqueName(used, filename), blob);
   });
 
   const blob = await zip.generateAsync({ type: 'blob' });
   const ext = target === 'jpeg' ? 'jpg' : target;
   const filename = `converted_${ext}_files.zip`;
 
-  return { blob, filename };
+  return { blob, filename, notice };
 }
 
 export async function runConversion(config, files) {

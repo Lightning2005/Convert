@@ -157,6 +157,7 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
   const [activeId, setActiveId] = useState(null); // <-- Храним ID файла, который сейчас тащат
   const [isDragActive, setIsDragActive] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef(null);
   const inFlightRef = useRef(false);
@@ -232,6 +233,7 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
 
   const handleFiles = (newFiles) => {
     setError('');
+    setNotice('');
     const allowedExts = config.accept.toLowerCase().split(',').map((s) => s.trim());
 
     const filtered = newFiles.filter((file) => {
@@ -294,6 +296,7 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
   const handleClearAll = () => {
     setFiles([]);
     setError('');
+    setNotice('');
   };
 
   const handleSubmit = async () => {
@@ -302,11 +305,13 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
     inFlightRef.current = true;
     setIsLoading(true);
     setError('');
+    setNotice('');
 
     try {
       const rawFilesArray = files.map(item => item.file);
-      const { blob, filename } = await runConversion(config, rawFilesArray);
-      downloadBlob(blob, filename);
+      const result = await runConversion(config, rawFilesArray);
+      downloadBlob(result.blob, result.filename);
+      if (result.notice) setNotice(result.notice);
     } catch (err) {
       console.error(err);
       setError(humanizeError(err.message));
@@ -381,6 +386,12 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
       {error && (
         <div className="w-full max-w-xl bg-error/10 border-l-4 border-error p-4 rounded-r-xl text-sm text-error font-medium">
           {error}
+        </div>
+      )}
+
+      {notice && (
+        <div className="w-full max-w-xl bg-warning/10 border-l-4 border-warning p-4 rounded-r-xl text-sm text-warning font-medium">
+          {notice}
         </div>
       )}
 

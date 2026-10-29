@@ -2,10 +2,13 @@ import { SUPPORTED_TOOLS } from './config/tools.js';
 
 export const SITE_NAME = 'Конверт';
 
-// Абсолютный адрес нужен для canonical и Open Graph. В разработке он пустой —
-// без него теги просто не выводятся, чтобы не генерировать битые ссылки.
-const configuredUrl = typeof import.meta.env !== 'undefined' ? import.meta.env.VITE_SITE_URL : undefined;
-export const SITE_URL = configuredUrl ? configuredUrl.replace(/\/+$/, '') : '';
+// Абсолютный адрес нужен для canonical, og:url, sitemap и robots. В разработке
+// он пустой — теги просто не выводятся, чтобы не генерировать битые ссылки.
+// Файл общий: адрес приходит и из import.meta.env (браузер), и из process.env
+// (сборщик статических страниц запускается в Node).
+const fromVite = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_SITE_URL : undefined;
+const fromNode = typeof process !== 'undefined' && process.env ? process.env.VITE_SITE_URL : undefined;
+export const SITE_URL = (fromVite || fromNode || '').replace(/\/+$/, '');
 
 export const HOME_DESCRIPTION =
   'Бесплатный онлайн-конвертер изображений и PDF: JPG, PNG, WebP, TIFF, BMP, HEIC, ICO. ' +

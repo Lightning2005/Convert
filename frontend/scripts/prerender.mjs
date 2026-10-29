@@ -1,12 +1,19 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-
-import { SITE_URL, absoluteUrl, getSeo, getSitemapEntries } from '../src/seo.js';
+import { loadEnv } from 'vite';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const distDir = path.join(root, 'dist');
 const ssrEntry = path.join(root, '.vite-ssr', 'entry-server.js');
+
+// .env/.env.production читаем так же, как Vite, чтобы адрес сайта был общий
+// для браузера (import.meta.env) и для этого скрипта (process.env)
+Object.assign(process.env, loadEnv('production', root, 'VITE_'));
+
+const { SITE_URL, absoluteUrl, getSeo, getSitemapEntries } = await import(
+  pathToFileURL(path.join(root, 'src', 'seo.js')).href
+);
 
 const escapeAttr = (value) =>
   String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -63,6 +70,46 @@ for (const { path: route } of routes) {
 }
 
 console.log(`Статических страниц собрано: ${written.length}`);
-if (!SITE_URL) {
-  console.warn('VITE_SITE_URL не задан — canonical, og:url и sitemap.xml не сгенерированы.');
+
+const escapeXml = (value) =>
+  String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+function sitemapFile(lastmod) {
+  const urls = getSitemapEntries()
+    .map(({ path: route, priority, changefreq }) => [
+      '  <url>',
+      `    <loc>${escapeXml(`${SITE_URL}${route}`)}</loc>`,
+      `    <lastmod>${lastmod}</lastmod>`,
+      `    <changefreq>${changefreq}</changefreq>`,
+      `    <priority>${priority}</priority>`,
+      '  </url>',
+    ].join('\n'))
+    .join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
 }
+
+if (SITE_URL) {
+  const lastmod = new Date().toISOString().slice(0, 10);
+  await writeFile(path.join(distDir, 'sitemap.xml'), sitemapFile(lastmod), 'utf8');
+  await writeFile(
+    path.join(distDir, 'robots.txt'),
+    `User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: ${SITE_URL}/sitemap.xml\n`,
+    'utf8'
+  );
+  console.log(`robots.txt и sitemap.xml: ${SITE_URL} (${getSitemapEntries().length} адресов)`);
+} else {
+  console.warn('VITE_SITE_URL не задан — canonical, og:url, robots.txt и sitemap.xml не сгенерированы.');
+}
+
+// ads.txt: строку берём из кабинета РСЯ, она специфична для домена и издателя
+const adsTxt = (process.env.VITE_ADS_TXT || '').trim();
+await writeFile(
+  path.join(distDir, 'ads.txt'),
+  adsTxt
+    ? `${adsTxt}\n`
+    : '# Заполните VITE_ADS_TXT строкой из кабинета Яндекс.Reкламы:\n' +
+      '# yandex.com, pub-XXXXXXXXXXXXX, DIRECT, <контрольный параметр>\n',
+  'utf8'
+);
+if (!adsTxt) console.warn('VITE_ADS_TXT не задан — ads.txt собран с заглушкой-комментарием.');

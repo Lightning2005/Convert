@@ -159,6 +159,7 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef(null);
+  const inFlightRef = useRef(false);
 
   const isSortableEnabled = config.targetName?.toUpperCase() === 'PDF';
 
@@ -296,8 +297,9 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
   };
 
   const handleSubmit = async () => {
-    if (files.length === 0) return;
+    if (files.length === 0 || inFlightRef.current) return;
 
+    inFlightRef.current = true;
     setIsLoading(true);
     setError('');
 
@@ -309,6 +311,7 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
       console.error(err);
       setError(humanizeError(err.message));
     } finally {
+      inFlightRef.current = false;
       setIsLoading(false);
     }
   };

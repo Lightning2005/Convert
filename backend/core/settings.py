@@ -9,23 +9,54 @@ https://docs.djangoproject.com/en/6.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
+import os
 import platform
 from pathlib import Path
+
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def env_bool(name, default=False):
+    raw = os.environ.get(name)
+    if not raw:
+        return default
+    return raw.strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def env_list(name, default=()):
+    """Список через запятую: 'a.ru, b.ru' -> ['a.ru', 'b.ru'].
+
+    Пустое значение ('VAR=') трактуется как «переменную не задавали», иначе
+    passthrough из docker-compose с `${VAR:-}` обнулил бы настройки по умолчанию.
+    """
+    raw = os.environ.get(name)
+    if not raw:
+        return list(default)
+    return [item.strip() for item in raw.split(',') if item.strip()]
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
+DEBUG = env_bool('DJANGO_DEBUG', True)
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-mhky5qu_^^r_23(!^bw8dfj5hr+tbjp%db+1*6ho)0t1d$&0v%'
+# Ключ берётся из окружения; ключ ниже закоммичен в репозиторий и годится
+# только для локальной разработки.
+DEV_SECRET_KEY = 'django-insecure-mhky5qu_^^r_23(!^bw8dfj5hr+tbjp%db+1*6ho)0t1d$&0v%'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') or DEV_SECRET_KEY
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Без DJANGO_SECRET_KEY запуск в проде запрещён — иначе остаётся публичный ключ.
+if not DEBUG and SECRET_KEY == DEV_SECRET_KEY:
+    raise ImproperlyConfigured('Задайте DJANGO_SECRET_KEY — девелперский ключ нельзя использовать в продакшене.')
 
-ALLOWED_HOSTS = []
+# Локальные хосты разрешены всегда: к dev-серверу обращаются по 127.0.0.1 и по
+# имени сервиса из docker-compose. Реальный домен добавляется через
+# DJANGO_ALLOWED_HOSTS.
+ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', ['localhost', '127.0.0.1', '[::1]', '0.0.0.0', 'web'])
 
 
 # Application definition
@@ -123,17 +154,12 @@ STATIC_URL = 'static/'
 # НАСТРОЙКИ ДЛЯ MVP (Июнь 2026)
 
 # Настройки CORS
-if DEBUG:
-    # На локалке разрешаем любые запросы для удобства разработки
-    CORS_ALLOW_ALL_ORIGINS = True
-else:
-    # Для продакшена (Этап 3.2) сюда впишем адрес твоего фронтенда на Vercel/Netlify
-    CORS_ALLOWED_ORIGINS = [
-        "https://your-frontend-domain.com",
-    ]
-
-import os
-import platform
+# «Разрешить любые источники» включается только локально и только при DEBUG:
+# в проде фронтенд отдаётся с того же домена, что и API, либо его адрес
+# дописывается в CORS_ALLOWED_ORIGINS.
+CORS_ALLOW_ALL_ORIGINS = env_bool('CORS_ALLOW_ALL_ORIGINS', DEBUG)
+CORS_ALLOWED_ORIGINS = env_list('CORS_ALLOWED_ORIGINS')
+CORS_ALLOWED_ORIGIN_REGEXES = env_list('CORS_ALLOWED_ORIGIN_REGEXES')
 
 # ==============================================================================
 # НАСТРОЙКИ CELERY & REDIS
@@ -147,20 +173,28 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 
-# Максимальный лимит на объем загружаемых файлов в Django — 50 МБ (50 * 1024 * 1024)
-DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800
-FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800
+# Ограничитель размера тела запроса уже есть в converter/views.py (50 МБ),
+# поэтому здесь важно другое: пока порог был 50 МБ, Django собирал всё тело
+# запроса в памяти. Замер: запрос на 40.5 МБ, который сервер отверг по
+# расширению, поднимал анонимную память контейнера на 45.5 МБ. С порогом 2 МБ
+# такие файлы сразу уходят во временный файл на диске (+7.7 МБ вместо 45.5).
+DATA_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
 
 # ==============================================================================
 # СПЕЦИФИКА POPPLER (ДЛЯ PDF2IMAGE)
 # ==============================================================================
 # В Linux (Docker) пакет poppler-utils установлен глобально, путь передавать не нужно.
-# Для Windows требуется скачать бинарники и явно указать к ним путь в коде.
+# Для Windows требуется скачать бинарники и указать к ним путь: либо через
+# переменную окружения POPPLER_PATH, либо значением по умолчанию ниже.
 if platform.system() == 'Windows':
-    # Укажи здесь свой реальный локальный путь к распакованному poppler на Windows
-    POPPLER_PATH = r'E:\Study\App\poppler-26.02.0\Library\bin'
+    POPPLER_PATH = os.environ.get('POPPLER_PATH') or r'E:\Study\App\poppler-26.02.0\Library\bin'
 else:
     POPPLER_PATH = None
+
+# Django-админка не нужна публичному API, поэтому в проде она открывается
+# отдельно: DJANGO_ENABLE_ADMIN=1.
+ENABLE_ADMIN = env_bool('DJANGO_ENABLE_ADMIN', DEBUG)
 
 from celery.schedules import crontab
 

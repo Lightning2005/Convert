@@ -19,6 +19,22 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+// Сообщения Celery содержат пути и стеки — в интерфейсе показываем только человеческий текст
+function humanizeError(raw) {
+  const message = String(raw || '').trim();
+  if (/celery|cannot identify|truncated|unrecognized|corrupt|stack trace|exception/i.test(message)) {
+    return 'Файл повреждён или записан не полностью. Попробуйте пересохранить его и повторить.';
+  }
+  if (/poppler|unable to get page count|encrypted|password/i.test(message)) {
+    return 'Не удаётся прочитать PDF: файл повреждён или защищён паролем.';
+  }
+  if (/timeout|timed out|failed to fetch|networkerror/i.test(message)) {
+    return 'Сервер не отвечает. Проверьте соединение и попробуйте ещё раз.';
+  }
+  if (/[а-яА-ЯёЁ]/.test(message)) return message;
+  return 'Сервер не смог обработать файл. Проверьте файл и попробуйте ещё раз.';
+}
+
 // 1. Чистый презентационный компонент строки (используется и в списке, и в оверлее)
 function FileItemView({
   item,
@@ -274,6 +290,11 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
     setActiveId(null);
   };
 
+  const handleClearAll = () => {
+    setFiles([]);
+    setError('');
+  };
+
   const handleSubmit = async () => {
     if (files.length === 0) return;
 
@@ -286,7 +307,7 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
       downloadBlob(blob, filename);
     } catch (err) {
       console.error(err);
-      setError(err.message || 'Произошла ошибка при отправке запроса на сервер.');
+      setError(humanizeError(err.message));
     } finally {
       setIsLoading(false);
     }
@@ -365,7 +386,7 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
           <div className="w-full text-sm text-text-secondary flex justify-between px-1 items-center">
             <span>Выбрано файлов: <span className="font-bold text-text-primary">{files.length}</span> из {config.maxFiles}</span>
             {!isLoading && (
-              <button onClick={() => setFiles([])} className="text-error hover:underline font-medium text-xs">Очистить список</button>
+              <button onClick={handleClearAll} className="text-error hover:underline font-medium text-xs">Очистить список</button>
             )}
           </div>
 

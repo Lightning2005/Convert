@@ -1,4 +1,4 @@
-import { SUPPORTED_TOOLS } from './config/tools';
+import { SUPPORTED_TOOLS } from './config/tools.js';
 
 export const SITE_NAME = 'Конверт';
 

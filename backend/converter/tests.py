@@ -1,6 +1,7 @@
 import io
 import os
 import re
+import uuid
 import zipfile
 from unittest.mock import PropertyMock, patch
 from urllib.parse import urlparse
@@ -166,6 +167,22 @@ class ImagesToPdfAPITestCase(ConverterAPITestBase):
             response.data,
             {'error': 'Слишком много файлов в одном запросе: максимум 50'},
         )
+
+    def test_missing_source_image_fails_instead_of_short_pdf(self):
+        """Исходник мог исчезнуть из tmp_files, пока задача ждала в очереди."""
+        from .tasks import images_to_pdf_task
+
+        source = os.path.join(TMP_DIR, f'present_{uuid.uuid4().hex}.jpg')
+        vanished = os.path.join(TMP_DIR, f'vanished_{uuid.uuid4().hex}.jpg')
+        output_filename = f'missing_source_{uuid.uuid4().hex}.pdf'
+        Image.new('RGB', (100, 100), 'blue').save(source, format='JPEG')
+
+        result = images_to_pdf_task.apply(args=[[source, vanished], output_filename]).get()
+
+        self.assertEqual(result['status'], 'FAILURE')
+        self.assertIn('1 из 2', result['error'])
+        # Укороченный PDF хуже ошибки: пользователь не заметит потерю страницы.
+        self.assertFalse(os.path.exists(os.path.join(TMP_DIR, output_filename)))
 
 
 @override_settings(**CELERY_TEST_SETTINGS)

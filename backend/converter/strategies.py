@@ -42,13 +42,21 @@ class ImagesToPdfConverter(BaseConverter):
     """Стратегия объединения изображений в PDF: все страницы portrait A4."""
 
     def convert(self, input_path: list, output_path: str, **kwargs) -> None:
+        # Пропущенные файлы проверяем до создания канваса: иначе пользователь
+        # получил бы укороченный PDF со статусом SUCCESS и без единого
+        # предупреждения. Такое возможно, если задача простояла в очереди дольше
+        # часа и очистка tmp_files успела съесть исходники.
+        missing = [path for path in input_path if not os.path.exists(path)]
+        if missing:
+            raise FileNotFoundError(
+                f"Не удалось найти {len(missing)} из {len(input_path)} исходных "
+                "файлов. Отправьте изображения заново."
+            )
+
         pdf_canvas = canvas.Canvas(output_path)
         page_width, page_height = A4
 
         for path in input_path:
-            if not os.path.exists(path):
-                continue
-
             img = Image.open(path)
             img = ImageOps.exif_transpose(img)
 

@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
-import { useParams, Link, useLocation } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import { SUPPORTED_TOOLS } from '../config/tools';
 import ConverterForm from '../components/ConverterForm';
+import NotFoundPage from './NotFoundPage';
 
 export default function ConverterPage() {
   const { slug } = useParams();
@@ -20,21 +21,7 @@ export default function ConverterPage() {
 
   // Если пользователь ввёл некорректный URL (нет такого инструмента в конфиге)
   if (!toolConfig) {
-    return (
-      <div className="text-center py-12 flex flex-col items-center gap-4">
-        <span className="text-6xl">🔍</span>
-        <h1 className="text-2xl font-bold text-text-primary">Инструмент не найден</h1>
-        <p className="text-text-secondary max-w-md text-sm">
-          К сожалению, запрашиваемый конвертер не существует или находится в разработке.
-        </p>
-        <Link
-          to="/"
-          className="mt-4 bg-primary text-white px-6 py-2 rounded-xl text-sm font-medium hover:bg-primary-hover transition-colors shadow-sm"
-        >
-          На главную
-        </Link>
-      </div>
-    );
+    return <NotFoundPage />;
   }
 
   // Передаем настройки и предзагруженные файлы в форму

@@ -5,6 +5,7 @@ import HomePage from './pages/HomePage';
 import ConverterPage from './pages/ConverterPage';
 import PrivacyPage from './pages/PrivacyPage';
 import ContactsPage from './pages/ContactsPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
           <Route path="/tool/:slug" element={<ConverterPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/contacts" element={<ContactsPage />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </MainLayout>
     </BrowserRouter>

@@ -201,6 +201,7 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
     if (e.target.files && e.target.files.length > 0) {
       handleFiles(Array.from(e.target.files));
     }
+    e.target.value = '';
   };
 
   const onButtonClick = () => {

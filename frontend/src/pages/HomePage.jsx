@@ -102,6 +102,7 @@ export default function HomePage() {
 
   const handleFileChange = (e) => {
     if (e.target.files) handleFilesReceived(e.target.files);
+    e.target.value = '';
   };
 
   const handleProceed = () => {

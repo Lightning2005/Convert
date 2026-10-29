@@ -233,18 +233,19 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
       setError(`Отброшено файлов: ${rejected}. Поддерживается только ${config.sourceName}.`);
     }
 
-    setFiles((prev) => {
-      const withIds = filtered.map((file, idx) => ({
-        id: `${file.name}-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 5)}`,
-        file
-      }));
-      const updatedList = [...prev, ...withIds];
-      if (updatedList.length > config.maxFiles) {
-        setError(`Превышен лимит! Для этого инструмента можно выбрать не более ${config.maxFiles} файлов.`);
-        return prev;
-      }
-      return updatedList;
-    });
+    const withIds = filtered.map((file, idx) => ({
+      id: `${file.name}-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 7)}`,
+      file
+    }));
+
+    const room = config.maxFiles - files.length;
+    const accepted = withIds.slice(0, Math.max(room, 0));
+
+    if (accepted.length < withIds.length) {
+      setError(`Вмещается не более ${config.maxFiles} файлов, поэтому добавлено ${accepted.length} из ${withIds.length}.`);
+    }
+
+    setFiles([...files, ...accepted]);
   };
 
   const handleRemoveFile = (indexToRemove) => {

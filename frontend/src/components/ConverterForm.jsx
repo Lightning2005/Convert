@@ -252,8 +252,12 @@ export default function ConverterForm({ config, preloadedFiles }) {
       return;
     }
 
+    // Оба факта могут появиться в одной пачке: второй setError затирал первый,
+    // и пользователь не узнавал, что часть файлов отброшена по формату.
+    const problems = [];
+
     if (rejected > 0) {
-      setError(`Отброшено файлов: ${rejected}. Поддерживается только ${config.sourceName}.`);
+      problems.push(`Отброшено файлов: ${rejected}. Поддерживается только ${config.sourceName}.`);
     }
 
     const withIds = filtered.map((file, idx) => ({
@@ -265,7 +269,11 @@ export default function ConverterForm({ config, preloadedFiles }) {
     const accepted = withIds.slice(0, Math.max(room, 0));
 
     if (accepted.length < withIds.length) {
-      setError(`Вмещается не более ${config.maxFiles} файлов, поэтому добавлено ${accepted.length} из ${withIds.length}.`);
+      problems.push(`Вмещается не более ${config.maxFiles} файлов, поэтому добавлено ${accepted.length} из ${withIds.length}.`);
+    }
+
+    if (problems.length > 0) {
+      setError(problems.join(' '));
     }
 
     setFiles([...files, ...accepted]);

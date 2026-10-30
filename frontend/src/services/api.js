@@ -265,9 +265,13 @@ export async function convertPdfFilesToImages(files, target = 'jpg', signal) {
     signal,
     merge: async (done) => {
       const zip = new JSZip();
+      const usedFolders = new Set();
       for (const { blob, filename } of done) {
         const inner = await JSZip.loadAsync(blob);
-        const folder = filename.replace(/\.zip$/i, '') || 'document';
+        // Папка называется по имени документа, поэтому два одноимённых PDF
+        // раскладывались по одному пути и затирали страницы друг друга —
+        // молча, со статусом SUCCESS.
+        const folder = uniqueName(usedFolders, filename.replace(/\.zip$/i, '') || 'document');
         for (const entry of Object.values(inner.files)) {
           if (entry.dir) continue;
           zip.file(`${folder}/${entry.name}`, await entry.async('blob'));

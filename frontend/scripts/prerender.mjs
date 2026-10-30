@@ -11,7 +11,7 @@ const ssrEntry = path.join(root, '.vite-ssr', 'entry-server.js');
 // для браузера (import.meta.env) и для этого скрипта (process.env)
 Object.assign(process.env, loadEnv('production', root, 'VITE_'));
 
-const { SITE_URL, absoluteUrl, getSeo, getSitemapEntries } = await import(
+const { SITE_URL, OG_IMAGE_PATH, OG_IMAGE_ALT, absoluteUrl, getSeo, getSitemapEntries } = await import(
   pathToFileURL(path.join(root, 'src', 'seo.js')).href
 );
 
@@ -30,6 +30,16 @@ function headTags(seo) {
   if (url) {
     tags.push(`<link rel="canonical" href="${escapeAttr(url)}">`);
     tags.push(`<meta property="og:url" content="${escapeAttr(url)}">`);
+    // og:image обязан быть абсолютным, поэтому теги живут в той же ветке, что и
+    // canonical: без VITE_SITE_URL превью просто не выводится вместо битой ссылки.
+    const image = absoluteUrl(OG_IMAGE_PATH);
+    tags.push(`<meta property="og:image" content="${escapeAttr(image)}">`);
+    tags.push('<meta property="og:image:width" content="1200">');
+    tags.push('<meta property="og:image:height" content="630">');
+    tags.push(`<meta property="og:image:alt" content="${escapeAttr(OG_IMAGE_ALT)}">`);
+    tags.push(`<meta name="twitter:image" content="${escapeAttr(image)}">`);
+    tags.push(`<meta name="twitter:title" content="${escapeAttr(seo.title)}">`);
+    tags.push(`<meta name="twitter:description" content="${escapeAttr(seo.description)}">`);
   }
   return tags.join('\n    ');
 }

@@ -2,6 +2,12 @@ import { SUPPORTED_TOOLS, MAX_FILE_SIZE_MB } from './config/tools.js';
 
 export const SITE_NAME = 'Конверт';
 
+// Превью-картинка одна на весь сайт: 1200×630 — размер, который требуют
+// Facebook/Telegram/VK для summary_large_image.
+export const OG_IMAGE_PATH = '/og-image.png';
+export const OG_IMAGE_ALT =
+  'Конверт — онлайн-конвертер картинок и PDF: 22 формата, пакетная обработка, без регистрации';
+
 // Абсолютный адрес нужен для canonical, og:url, sitemap и robots. В разработке
 // он пустой — теги просто не выводятся, чтобы не генерировать битые ссылки.
 // Файл общий: адрес приходит и из import.meta.env (браузер), и из process.env

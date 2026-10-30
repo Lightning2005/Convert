@@ -537,6 +537,42 @@ export default function ConverterForm({ config, preloadedFiles }) {
           <li>Дождитесь завершения обработки и скачайте готовый {config.targetName}</li>
         </ul>
       </div>
+
+      {/* Текстовый блок инструмента: чем он отличается от соседних, что произойдёт
+          с файлом и какие у него лимиты. native details вместо аккордеона с состоянием
+          отвечает на вопрос без JS — текст остаётся в prerender-HTML. */}
+      <div className="w-full max-w-2xl border-t border-ui-border pt-6 space-y-6">
+        <section>
+          <h2 className="font-semibold text-lg mb-3 text-text-primary">
+            Что нужно знать про {config.sourceName} и {config.targetName}
+          </h2>
+          <div className="space-y-3 text-sm leading-relaxed text-text-secondary">
+            {config.about.map((paragraph, index) => (
+              <p key={index}>{paragraph}</p>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <h3 className="font-semibold text-lg mb-3 text-text-primary">Частые вопросы</h3>
+          <div className="space-y-2">
+            {config.faq.map((item, index) => (
+              <details
+                key={index}
+                className="group rounded-xl border border-ui-border bg-main"
+              >
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3.5 text-sm font-semibold text-text-primary [&::-webkit-details-marker]:hidden">
+                  <span>{item.q}</span>
+                  <svg className="h-3 w-3 shrink-0 fill-current text-text-secondary transition-transform duration-200 group-open:rotate-180" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                  </svg>
+                </summary>
+                <p className="px-4 pb-4 text-sm leading-relaxed text-text-secondary">{item.a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+      </div>
     </>
   );
 }

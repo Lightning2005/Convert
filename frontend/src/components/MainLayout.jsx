@@ -33,6 +33,8 @@ export default function MainLayout({ children }) {
 
   const pdfRef = useRef(null);
   const imageRef = useRef(null);
+  const menuButtonRef = useRef(null);
+  const drawerRef = useRef(null);
   const location = useLocation();
 
   const hideAdsRoutes = ['/privacy', '/contacts'];
@@ -68,6 +70,43 @@ export default function MainLayout({ children }) {
     }
     return () => {
       document.body.style.overflow = '';
+    };
+  }, [mobileMenuOpen]);
+
+  // Drawer закрывает экран оверлеем, но страница под ним остаётся живой: Tab
+  // уходил на ссылки под затемнением, а Esc ронял фокус в <body>. Держим фокус
+  // внутри панели и возвращаем его на кнопку меню при закрытии.
+  useEffect(() => {
+    if (!mobileMenuOpen) return undefined;
+    const panel = drawerRef.current;
+    const opener = menuButtonRef.current;
+    if (!panel) return undefined;
+
+    // Список берём в момент нажатия: секции инструментов монтируются по клику.
+    const focusables = () => [...panel.querySelectorAll('a[href], button:not([disabled])')];
+    focusables()[0]?.focus();
+
+    const handleTabKey = (event) => {
+      if (event.key !== 'Tab') return;
+      const items = focusables();
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      const outside = !panel.contains(active);
+      if (event.shiftKey && (active === first || outside)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || outside)) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleTabKey, true);
+    return () => {
+      document.removeEventListener('keydown', handleTabKey, true);
+      opener?.focus();
     };
   }, [mobileMenuOpen]);
 
@@ -191,6 +230,7 @@ export default function MainLayout({ children }) {
         <div className="flex-1 flex items-center justify-end gap-2">
           {/* Кнопка гамбургера (мобильное меню) */}
           <button
+            ref={menuButtonRef}
             onClick={() => setMobileMenuOpen(true)}
             className="md:hidden p-2 min-h-11 min-w-11 hover:bg-surface-muted rounded-lg transition text-text-secondary flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             aria-label="Открыть меню"
@@ -295,7 +335,7 @@ export default function MainLayout({ children }) {
           />
 
           {/* Выезжающая панель */}
-          <nav id="mobile-drawer" aria-label="Мобильная навигация" className="relative w-full max-w-[20rem] h-full bg-main border-l border-ui-border p-6 overflow-y-auto flex flex-col gap-6 shadow-2xl z-10 text-text-primary [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-ui-border [&::-webkit-scrollbar-thumb]:rounded-full animate-fadeIn">
+          <nav ref={drawerRef} id="mobile-drawer" role="dialog" aria-modal="true" aria-label="Мобильная навигация" className="relative w-full max-w-[20rem] h-full bg-main border-l border-ui-border p-6 overflow-y-auto flex flex-col gap-6 shadow-2xl z-10 text-text-primary [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-ui-border [&::-webkit-scrollbar-thumb]:rounded-full animate-fadeIn">
 
             {/* Шапка бокового меню */}
             <div className="flex justify-between items-center pb-4 border-b border-ui-border">

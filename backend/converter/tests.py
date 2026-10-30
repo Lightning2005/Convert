@@ -645,6 +645,22 @@ class ThrottlingTestCase(ConverterAPITestBase):
 
         self.assertEqual(self.submit_conversion().status_code, 429)
 
+    def test_forwarded_header_is_not_trusted_by_default(self):
+        """NUM_PROXIES=0: X-Forwarded-For не покупает клиенту чистый бакет."""
+        url = reverse('task_status', kwargs={'task_id': 'probe'})
+
+        with patch.dict(SimpleRateThrottle.THROTTLE_RATES, {'poll': '3/min'}):
+            for index in range(3):
+                allowed = self.client.get(url, HTTP_X_FORWARDED_FOR=f'10.0.0.{index}')
+                self.assertEqual(allowed.status_code, 200)
+
+            blocked = self.client.get(url, HTTP_X_FORWARDED_FOR='10.0.0.99')
+
+        self.assertEqual(blocked.status_code, 429)
+
+    def test_num_proxies_defaults_to_zero(self):
+        self.assertEqual(settings.REST_FRAMEWORK['NUM_PROXIES'], 0)
+
 
 class DescribeFailureTestCase(SimpleTestCase):
     """Собственные сообщения стратегий доходят до клиента, библиотечные — нет."""

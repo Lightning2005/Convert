@@ -189,10 +189,15 @@ CACHES = {
 # под поведение фронтенда, чтобы не отрезать честные батчи: один клик по
 # 40 PDF — это 40 POST, батч из 50 картинок опрашивает статус не чаще раза в
 # 1,5 с (≤40 запросов/мин) и скачивает до 50 файлов.
-# За nginx адрес клиента приходит в X-Forwarded-For, поэтому NUM_PROXIES=1:
-# берётся последний адрес цепочки, который подставил наш прокси. Если веб
-# открыт наружу без прокси, ставьте DJANGO_NUM_PROXIES=0 — иначе клиент сможет
-# обойти лимит поддельным заголовком.
+# За nginx адрес клиента приходит в X-Forwarded-For, но доверять этому заголовку
+# можно только зная, что перед вебом стоит наш прокси: последний адрес цепочки
+# подставляет ближайший к Django хост, а в docker-compose порта 8000 извне не
+# видно, так что ближайший хост — сам клиент. Поэтому по умолчанию NUM_PROXIES=0
+# (считаем только REMOTE_ADDR), а за nginx нужно явно поставить
+# DJANGO_NUM_PROXIES=1. Проверка: 250 запросов с уникальным X-Forwarded-For при
+# NUM_PROXIES=1 проходили лимит 200/мин целиком; при 0 упираются в 429 на 201-м.
+# Если ошибиться в сторону 0 за прокси — все пользователи разделят один бакет и
+# получат 429, это заметно; молча обходимый лимит незаметен.
 REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_CLASSES': ['rest_framework.throttling.ScopedRateThrottle'],
     'DEFAULT_THROTTLE_RATES': {
@@ -201,7 +206,7 @@ REST_FRAMEWORK = {
         'download': os.environ.get('THROTTLE_DOWNLOAD') or '1000/hour',
     },
     'EXCEPTION_HANDLER': 'converter.exceptions.api_exception_handler',
-    'NUM_PROXIES': int(os.environ.get('DJANGO_NUM_PROXIES') or 1),
+    'NUM_PROXIES': int(os.environ.get('DJANGO_NUM_PROXIES') or 0),
 }
 
 # Ограничитель размера тела запроса уже есть в converter/views.py (50 МБ),

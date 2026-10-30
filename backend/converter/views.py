@@ -96,6 +96,7 @@ def task_snapshot(task_id):
 
 class ImagesToPdfView(APIView):
     parser_classes = [MultiPartParser]
+    throttle_scope = 'convert'
 
     def post(self, request, format=None):
         uploaded_images = request.FILES.getlist('images')
@@ -132,6 +133,7 @@ class ImagesToPdfView(APIView):
 
 class PdfToImagesView(APIView):
     parser_classes = [MultiPartParser]
+    throttle_scope = 'convert'
 
     def post(self, request, format=None):
         uploaded_pdf = request.FILES.get('pdf')
@@ -163,6 +165,7 @@ class PdfToImagesView(APIView):
 
 class GenericConvertView(APIView):
     parser_classes = [MultiPartParser]
+    throttle_scope = 'convert'
 
     def post(self, request, *args, **kwargs):
         uploaded_file = request.FILES.get('file')
@@ -200,12 +203,16 @@ class GenericConvertView(APIView):
 # ==========================================
 
 class TaskStatusView(APIView):
+    throttle_scope = 'poll'
+
     def get(self, request, task_id, *args, **kwargs):
         return Response(task_snapshot(task_id), status=status.HTTP_200_OK)
 
 
 class BatchTaskStatusView(APIView):
     """Один запрос вместо N: батч из 50 файлов опрашивал статус 50 раз за цикл."""
+
+    throttle_scope = 'poll'
 
     def get(self, request, *args, **kwargs):
         raw = request.GET.get('ids', '')
@@ -224,6 +231,8 @@ class BatchTaskStatusView(APIView):
 
 
 class FileDownloadView(APIView):
+    throttle_scope = 'download'
+
     def get(self, request, filename, *args, **kwargs):
         clean_filename = os.path.basename(filename)
         file_path = os.path.join(TMP_DIR, clean_filename)

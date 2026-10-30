@@ -184,6 +184,26 @@ CACHES = {
     }
 }
 
+# Ограничитель частоты запросов (анонимный API может долбить скрипт).
+# Окно скользящее, история запросов живёт в кэше на redis. Лимиты подобраны
+# под поведение фронтенда, чтобы не отрезать честные батчи: один клик по
+# 40 PDF — это 40 POST, батч из 50 картинок опрашивает статус не чаще раза в
+# 1,5 с (≤40 запросов/мин) и скачивает до 50 файлов.
+# За nginx адрес клиента приходит в X-Forwarded-For, поэтому NUM_PROXIES=1:
+# берётся последний адрес цепочки, который подставил наш прокси. Если веб
+# открыт наружу без прокси, ставьте DJANGO_NUM_PROXIES=0 — иначе клиент сможет
+# обойти лимит поддельным заголовком.
+REST_FRAMEWORK = {
+    'DEFAULT_THROTTLE_CLASSES': ['rest_framework.throttling.ScopedRateThrottle'],
+    'DEFAULT_THROTTLE_RATES': {
+        'convert': os.environ.get('THROTTLE_CONVERT') or '300/hour',
+        'poll': os.environ.get('THROTTLE_POLL') or '200/min',
+        'download': os.environ.get('THROTTLE_DOWNLOAD') or '1000/hour',
+    },
+    'EXCEPTION_HANDLER': 'converter.exceptions.api_exception_handler',
+    'NUM_PROXIES': int(os.environ.get('DJANGO_NUM_PROXIES') or 1),
+}
+
 # Ограничитель размера тела запроса уже есть в converter/views.py (50 МБ),
 # поэтому здесь важно другое: пока порог был 50 МБ, Django собирал всё тело
 # запроса в памяти. Замер: запрос на 40.5 МБ, который сервер отверг по

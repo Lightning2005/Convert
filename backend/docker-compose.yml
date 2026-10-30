@@ -12,6 +12,12 @@ x-django-env: &django-env
   DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-}
   CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
   DJANGO_ENABLE_ADMIN: ${DJANGO_ENABLE_ADMIN:-}
+  # Лимиты частоты запросов и число доверенных прокси перед web. Пустое
+  # значение означает «настройку не задавали» — см. REST_FRAMEWORK в settings.py.
+  THROTTLE_CONVERT: ${THROTTLE_CONVERT:-}
+  THROTTLE_POLL: ${THROTTLE_POLL:-}
+  THROTTLE_DOWNLOAD: ${THROTTLE_DOWNLOAD:-}
+  DJANGO_NUM_PROXIES: ${DJANGO_NUM_PROXIES:-}
 
 services:
   redis:

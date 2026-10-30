@@ -41,7 +41,10 @@ async function pollTasks(taskIds, { intervalMs = POLL_INTERVAL_MS, maxAttempts =
     );
 
     if (!response.ok) {
-      throw new Error('Ошибка при проверке статуса задач на сервере.');
+      // 429 от лимитера приходит с понятным текстом в поле error («повторите
+      // через 43 сек.») — терять его в общей фразе про сервер не стоит.
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Ошибка при проверке статуса задач на сервере.');
     }
 
     const { tasks } = await response.json();

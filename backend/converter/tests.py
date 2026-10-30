@@ -7,11 +7,13 @@ from unittest.mock import PropertyMock, patch
 from urllib.parse import urlparse
 
 from django.conf import settings
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from django.urls import reverse
 from PIL import Image
 from rest_framework.test import APITestCase
+from rest_framework.throttling import SimpleRateThrottle
 
 from . import services
 
@@ -455,3 +457,50 @@ class TaskSystemAPITestCase(ConverterAPITestBase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn('максимум 100', response.data['error'])
+
+
+@override_settings(**CELERY_TEST_SETTINGS)
+class ThrottlingTestCase(ConverterAPITestBase):
+    """Скрипт не должен бесконечно ставить задачи в Celery с одного адреса."""
+
+    def setUp(self):
+        super().setUp()
+        cache.clear()
+
+    def submit_conversion(self, remote_addr='10.0.0.1'):
+        return self.client.post(
+            reverse('generic_convert'),
+            {'file': self.make_upload('test.jpg', 'JPEG'), 'target': 'png'},
+            format='multipart',
+            REMOTE_ADDR=remote_addr,
+        )
+
+    @patch.dict(SimpleRateThrottle.THROTTLE_RATES, {'convert': '3/hour'})
+    def test_convert_endpoint_answers_429_after_the_limit(self):
+        for _ in range(3):
+            self.assertEqual(self.submit_conversion().status_code, 202)
+
+        response = self.submit_conversion()
+
+        self.assertEqual(response.status_code, 429)
+        self.assertIn('Слишком много запросов', response.data['error'])
+        self.assertTrue(response.has_header('Retry-After'))
+
+    @patch.dict(SimpleRateThrottle.THROTTLE_RATES, {'convert': '3/hour'})
+    def test_limit_counts_requests_per_client_address(self):
+        for _ in range(3):
+            self.assertEqual(self.submit_conversion('10.0.0.1').status_code, 202)
+
+        self.assertEqual(self.submit_conversion('10.0.0.2').status_code, 202)
+        self.assertEqual(self.submit_conversion('10.0.0.1').status_code, 429)
+
+    @patch.dict(SimpleRateThrottle.THROTTLE_RATES, {'convert': '2/hour'})
+    def test_polling_has_its_own_bucket(self):
+        """Опрос статуса идёт своим лимитом: иначе батч задохнулся бы в poll-квоте."""
+        task_ids = [self.submit_conversion().data['task_id'] for _ in range(2)]
+
+        for _ in range(10):
+            response = self.client.get(reverse('task_status_batch'), {'ids': ','.join(task_ids)})
+            self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(self.submit_conversion().status_code, 429)

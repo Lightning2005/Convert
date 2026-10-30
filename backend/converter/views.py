@@ -295,7 +295,9 @@ class FileDownloadView(APIView):
         clean_filename = os.path.basename(filename)
         file_path = os.path.join(TMP_DIR, clean_filename)
 
-        if not os.path.exists(file_path):
+        # Именно файл: os.path.exists пропускает каталог, а open() на нём даёт
+        # IsADirectoryError и 500 вместо «файл не найден».
+        if not os.path.isfile(file_path):
             raise Http404("Файл не найден или был удален по истечении времени.")
 
         extension = os.path.splitext(clean_filename)[1].lower()

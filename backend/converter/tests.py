@@ -535,6 +535,16 @@ class TaskSystemAPITestCase(ConverterAPITestBase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
 
+    def test_download_directory_returns_404_not_500(self):
+        """open() на каталоге бросал IsADirectoryError."""
+        folder = os.path.join(TMP_DIR, f'directory_{uuid.uuid4().hex}')
+        os.makedirs(folder, exist_ok=True)
+        self.addCleanup(os.rmdir, folder)
+
+        response = self.client.get(reverse('file_download', kwargs={'filename': os.path.basename(folder)}))
+
+        self.assertEqual(response.status_code, 404)
+
     def submit_conversion(self, **data):
         response = self.client.post(reverse('generic_convert'), data, format='multipart')
         self.assertEqual(response.status_code, 202, response.data)

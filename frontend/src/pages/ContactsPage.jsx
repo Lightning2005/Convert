@@ -27,7 +27,7 @@ export default function ContactsPage() {
             href="https://github.com/Lightning2005"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-text-secondary hover:text-primary underline block mt-2"
+            className="text-xs text-text-secondary hover:text-primary underline flex items-center min-h-11 mt-2"
           >
             Профиль на GitHub
           </a>
@@ -39,7 +39,7 @@ export default function ContactsPage() {
       </div>
 
       <div className="mt-10 pt-6 border-t border-ui-border">
-        <Link to="/" className="text-primary hover:underline font-medium text-sm">
+        <Link to="/" className="min-h-11 inline-flex items-center text-primary hover:underline font-medium text-sm">
           ← Вернуться на главную
         </Link>
       </div>

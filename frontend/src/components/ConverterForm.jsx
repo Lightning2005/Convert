@@ -74,7 +74,7 @@ function FileItemView({
           <div
             {...attributes}
             {...listeners}
-            className="cursor-grab active:cursor-grabbing p-1 text-text-secondary hover:text-text-primary rounded-md hover:bg-surface-muted transition-colors shrink-0 flex items-center"
+            className="cursor-grab active:cursor-grabbing min-h-11 min-w-11 flex items-center justify-center p-1 text-text-secondary hover:text-text-primary rounded-md hover:bg-surface-muted transition-colors shrink-0"
             title="Перетащите для изменения порядка страниц"
           >
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -107,7 +107,7 @@ function FileItemView({
             e.stopPropagation();
             onRemove(index);
           }}
-          className="ml-2 p-1.5 text-text-secondary hover:text-error rounded-lg hover:bg-surface-muted transition-colors flex items-center justify-center shrink-0"
+          className="ml-2 min-h-11 min-w-11 p-1.5 text-text-secondary hover:text-error rounded-lg hover:bg-surface-muted transition-colors flex items-center justify-center shrink-0"
           title="Удалить файл"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -424,7 +424,7 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
           <div className="w-full text-sm text-text-secondary flex justify-between px-1 items-center">
             <span>Выбрано файлов: <span className="font-bold text-text-primary">{files.length}</span> из {config.maxFiles}</span>
             {!isLoading && (
-              <button onClick={handleClearAll} className="text-error hover:underline font-medium text-xs">Очистить список</button>
+              <button onClick={handleClearAll} className="min-h-11 inline-flex items-center text-error hover:underline font-medium text-xs">Очистить список</button>
             )}
           </div>
 

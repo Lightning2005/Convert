@@ -186,7 +186,7 @@ export default function MainLayout({ children }) {
           {/* Кнопка гамбургера (мобильное меню) */}
           <button
             onClick={() => setMobileMenuOpen(true)}
-            className="md:hidden p-2 hover:bg-surface-muted rounded-lg transition text-text-secondary flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="md:hidden p-2 min-h-11 min-w-11 hover:bg-surface-muted rounded-lg transition text-text-secondary flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             aria-label="Открыть меню"
             aria-expanded={mobileMenuOpen}
             aria-controls="mobile-drawer"
@@ -252,7 +252,7 @@ export default function MainLayout({ children }) {
             type="button"
             onClick={dismissFloorAd}
             aria-label="Закрыть рекламный блок"
-            className="self-center shrink-0 flex items-center gap-1 px-3 py-0.5 rounded-full bg-text-primary/75 text-white text-[11px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="self-center shrink-0 flex items-center gap-1 min-h-11 px-4 py-1 rounded-full bg-text-primary/75 text-white text-[11px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             Закрыть рекламу ✕
           </button>
@@ -273,9 +273,9 @@ export default function MainLayout({ children }) {
           &copy; {new Date().getFullYear()} Конверт. Все права защищены.
         </div>
         <div className="flex gap-4 font-medium">
-          <Link to="/privacy" className="hover:text-primary transition">Политика конфиденциальности</Link>
+          <Link to="/privacy" className="min-h-11 flex items-center hover:text-primary transition">Политика конфиденциальности</Link>
           <span className="text-ui-border">|</span>
-          <Link to="/contacts" className="hover:text-primary transition">Контакты</Link>
+          <Link to="/contacts" className="min-h-11 flex items-center hover:text-primary transition">Контакты</Link>
         </div>
       </footer>
 
@@ -296,7 +296,7 @@ export default function MainLayout({ children }) {
               <span className="font-bold text-lg tracking-tight">Навигация</span>
               <button
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-2 hover:bg-surface-muted rounded-lg transition text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="p-2 min-h-11 min-w-11 flex items-center justify-center hover:bg-surface-muted rounded-lg transition text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 aria-label="Закрыть меню"
               >
                 <svg className="w-5 h-5 stroke-current fill-none" viewBox="0 0 24 24" strokeWidth="2">
@@ -314,7 +314,7 @@ export default function MainLayout({ children }) {
                   onClick={() => setMobilePdfOpen(!mobilePdfOpen)}
                   aria-expanded={mobilePdfOpen}
                   aria-controls="mobile-pdf-menu"
-                  className="flex justify-between items-center w-full py-2.5 font-medium text-left text-text-primary hover:text-primary transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+                  className="flex justify-between items-center w-full min-h-11 py-2.5 font-medium text-left text-text-primary hover:text-primary transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
                 >
                   <span>Инструменты PDF</span>
                   <svg className={`w-4 h-4 transition-transform duration-200 fill-current text-text-secondary ${mobilePdfOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20">
@@ -328,7 +328,7 @@ export default function MainLayout({ children }) {
                       <Link
                         key={tool.slug}
                         to={`/tool/${tool.slug}`}
-                        className="py-2 text-sm text-text-secondary hover:text-primary transition font-normal"
+                        className="min-h-11 flex items-center py-2 text-sm text-text-secondary hover:text-primary transition font-normal"
                       >
                         {tool.sourceName} в {tool.targetName}
                       </Link>
@@ -343,7 +343,7 @@ export default function MainLayout({ children }) {
                   onClick={() => setMobileImageOpen(!mobileImageOpen)}
                   aria-expanded={mobileImageOpen}
                   aria-controls="mobile-image-menu"
-                  className="flex justify-between items-center w-full py-2.5 font-medium text-left text-text-primary hover:text-primary transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+                  className="flex justify-between items-center w-full min-h-11 py-2.5 font-medium text-left text-text-primary hover:text-primary transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
                 >
                   <span>Конвертер картинок</span>
                   <svg className={`w-4 h-4 transition-transform duration-200 fill-current text-text-secondary ${mobileImageOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20">
@@ -357,7 +357,7 @@ export default function MainLayout({ children }) {
                       <Link
                         key={tool.slug}
                         to={`/tool/${tool.slug}`}
-                        className="py-2 text-sm text-text-secondary hover:text-primary transition font-normal"
+                        className="min-h-11 flex items-center py-2 text-sm text-text-secondary hover:text-primary transition font-normal"
                       >
                         {tool.sourceName} в {tool.targetName}
                       </Link>
@@ -370,13 +370,13 @@ export default function MainLayout({ children }) {
 
             {/* Системные ссылки: на мобильном drawer — единственный верхний вход в них */}
             <div className="flex flex-col gap-1 pt-4 border-t border-ui-border mt-auto">
-              <Link to="/" className="py-2 text-sm font-medium text-text-primary hover:text-primary transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
+              <Link to="/" className="min-h-11 flex items-center py-2 text-sm font-medium text-text-primary hover:text-primary transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
                 Главная
               </Link>
-              <Link to="/contacts" className="py-2 text-sm text-text-secondary hover:text-primary transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
+              <Link to="/contacts" className="min-h-11 flex items-center py-2 text-sm text-text-secondary hover:text-primary transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
                 Контакты
               </Link>
-              <Link to="/privacy" className="py-2 text-sm text-text-secondary hover:text-primary transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
+              <Link to="/privacy" className="min-h-11 flex items-center py-2 text-sm text-text-secondary hover:text-primary transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded">
                 Политика конфиденциальности
               </Link>
             </div>

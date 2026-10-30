@@ -39,7 +39,7 @@ export default function CookieNotice() {
         <button
           type="button"
           onClick={accept}
-          className="shrink-0 bg-primary hover:bg-primary-hover active:bg-primary-active text-white text-sm font-bold px-5 py-2 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="shrink-0 min-h-11 inline-flex items-center justify-center bg-primary hover:bg-primary-hover active:bg-primary-active text-white text-sm font-bold px-5 py-2 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           Понятно
         </button>

@@ -10,14 +10,19 @@ from django.conf import settings  # Добавили импорт настрое
 from django.http import FileResponse, Http404
 from django.urls import reverse
 from celery.result import AsyncResult
+from PIL import Image
 from .errors import describe_failure
 from .strategies import ConverterFactory
 
-from .tasks import images_to_pdf_task, pdf_to_images_task, generic_convert_task
+from .tasks import images_to_pdf_task, pdf_to_images_task, generic_convert_task, cleanup_files
 
 MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB
 MAX_FILES_PER_REQUEST = 50
 MAX_TASK_IDS_PER_QUERY = 100
+# Потолок пикселей одного исходника. «Плоский» PNG 10000x10000 весит 300 КБ, но
+# в распакованном виде занимает ~300 МБ памяти воркера: лимит по байтам файла
+# от этого не защищает.
+MAX_IMAGE_PIXELS = 50_000_000
 SUPPORTED_IMAGE_EXTENSIONS = {
     '.jpg', '.jpeg', '.png', '.webp',
     '.tiff', '.tif', '.ico', '.bmp', '.heic'
@@ -70,6 +75,28 @@ def save_uploaded_file(file_obj) -> str:
     fs = FileSystemStorage(location=TMP_DIR)
     saved_name = fs.save(unique_filename, file_obj)
     return fs.path(saved_name)
+
+
+def oversized_image(path):
+    """(ширина, высота) картинки сверх потолка либо None.
+
+    Pillow читает только заголовок: пиксели не декодируются, поэтому проверка
+    дешёвая и выполняется до постановки задачи в очередь.
+    """
+    try:
+        with Image.open(path) as img:
+            width, height = img.size
+    except Exception:
+        # Содержимое разбирает воркер — здесь решаем только по размерам.
+        return None
+
+    return (width, height) if width * height > MAX_IMAGE_PIXELS else None
+
+
+def too_many_pixels_message(name, size):
+    width, height = size
+    return (f"Изображение {name} слишком большое: {width}×{height} пикселей. "
+            f"Потолок — {MAX_IMAGE_PIXELS // 1_000_000} Мпикс.")
 
 
 # Пока воркер не начал задачу, Celery отдаёт по её id состояние PENDING — точно
@@ -136,6 +163,14 @@ class ImagesToPdfView(APIView):
             return Response({"error": "Превышен суммарный лимит размера файлов (макс. 50 МБ)"}, status=status.HTTP_400_BAD_REQUEST)
 
         saved_paths = [save_uploaded_file(img) for img in uploaded_images]
+
+        for img, path in zip(uploaded_images, saved_paths):
+            oversized = oversized_image(path)
+            if oversized:
+                cleanup_files(saved_paths)
+                return Response({"error": too_many_pixels_message(img.name, oversized)},
+                                status=status.HTTP_400_BAD_REQUEST)
+
         output_filename = f"converted_images_{uuid.uuid4()}.pdf"
 
         task = images_to_pdf_task.delay(saved_paths, output_filename)
@@ -203,6 +238,13 @@ class GenericConvertView(APIView):
             return Response({"error": "Размер файла превышает лимит 50 МБ"}, status=status.HTTP_400_BAD_REQUEST)
 
         input_path = save_uploaded_file(uploaded_file)
+
+        oversized = oversized_image(input_path)
+        if oversized:
+            cleanup_files([input_path])
+            return Response({"error": too_many_pixels_message(uploaded_file.name, oversized)},
+                            status=status.HTTP_400_BAD_REQUEST)
+
         output_filename = f"converted_file_{uuid.uuid4()}.{target_format}"
 
         task = generic_convert_task.delay(input_path, output_filename, target_format)

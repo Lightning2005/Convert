@@ -1,8 +1,10 @@
 import io
 import os
 import re
+import struct
 import uuid
 import zipfile
+import zlib
 from unittest.mock import PropertyMock, patch
 from urllib.parse import urlparse
 
@@ -19,6 +21,23 @@ from . import services
 from .errors import describe_failure, GENERIC_FAILURE
 
 TMP_DIR = os.path.join(settings.BASE_DIR, 'tmp_files')
+
+
+def fake_huge_png(width=10000, height=10000):
+    """PNG, который весит десятки байт, но объявляет 10000x10000 пикселей.
+
+    Ровно так выглядит картинка, способная распаковаться в ~300 МБ в воркере:
+    заголовок читается Pillow без декодирования, поэтому проверка отрабатывает
+    до очереди.
+    """
+    def chunk(tag, data):
+        return struct.pack('>I', len(data)) + tag + data + struct.pack('>I', zlib.crc32(tag + data))
+
+    ihdr = struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0)
+    return (b'\x89PNG\r\n\x1a\n'
+            + chunk(b'IHDR', ihdr)
+            + chunk(b'IDAT', zlib.compress(b'\x00' * 10))
+            + chunk(b'IEND', b''))
 
 # Celery выполняет задачи синхронно в тестах, без Redis
 CELERY_TEST_SETTINGS = {
@@ -180,6 +199,27 @@ class ImagesToPdfAPITestCase(ConverterAPITestBase):
             response.data,
             {'error': 'Слишком много файлов в одном запросе: максимум 50'},
         )
+
+    def test_giant_image_rejected_before_queueing(self):
+        """За 300 МБ распакованных пикселей файл платит 300 КБ на диске."""
+        before = set(os.listdir(TMP_DIR))
+        url = reverse('images_to_pdf')
+        data = {
+            'images': [
+                self.make_upload('ok.jpg', 'JPEG'),
+                SimpleUploadedFile('giant.png', fake_huge_png(), content_type='image/png'),
+            ]
+        }
+
+        with patch('converter.tasks.images_to_pdf_task.delay') as mock_delay:
+            response = self.client.post(url, data, format='multipart')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Мпикс', response.data['error'])
+        mock_delay.assert_not_called()
+        # Отклонённые загрузки не должны оставаться в tmp_files (beat вправе
+        # чистить старые файлы, поэтому сравниваем только появившиеся).
+        self.assertEqual(set(os.listdir(TMP_DIR)).difference(before), set())
 
     def test_missing_source_image_fails_instead_of_short_pdf(self):
         """Исходник мог исчезнуть из tmp_files, пока задача ждала в очереди."""
@@ -376,6 +416,16 @@ class GenericConvertAPITestCase(ConverterAPITestBase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn('error', response.data)
+
+    def test_giant_image_rejected_before_queueing(self):
+        giant = SimpleUploadedFile('giant.png', fake_huge_png(), content_type='image/png')
+
+        with patch('converter.tasks.generic_convert_task.delay') as mock_delay:
+            response = self.client.post(self.url, {'file': giant, 'target': 'png'}, format='multipart')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('10000', response.data['error'])
+        mock_delay.assert_not_called()
 
     def test_missing_file(self):
         response = self.client.post(self.url, {}, format='multipart')

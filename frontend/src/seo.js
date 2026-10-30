@@ -1,4 +1,4 @@
-import { SUPPORTED_TOOLS } from './config/tools.js';
+import { SUPPORTED_TOOLS, MAX_FILE_SIZE_MB } from './config/tools.js';
 
 export const SITE_NAME = 'Конверт';
 
@@ -15,8 +15,11 @@ export const HOME_DESCRIPTION =
   'Без регистрации, водяных знаков и лимитов на качество. Файлы удаляются с сервера автоматически.';
 
 function describeTool(slug, tool) {
+  const sizeNote = tool.target === 'pdf'
+    ? `суммарно до ${MAX_FILE_SIZE_MB} МБ`
+    : `файл до ${MAX_FILE_SIZE_MB} МБ`;
   return `${tool.description} Конвертация ${tool.sourceName} в ${tool.targetName} онлайн бесплатно, без регистрации. ` +
-    `До ${tool.maxFiles} файлов в одной операции, максимум 50 МБ.`;
+    `До ${tool.maxFiles} файлов в одной операции, ${sizeNote}.`;
 }
 
 /**

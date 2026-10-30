@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { runConversion, downloadBlob } from '../services/api';
+import { MAX_FILE_SIZE_MB } from '../config/tools';
 import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers';
 
 // Импорты dnd-kit
@@ -260,7 +261,35 @@ export default function ConverterForm({ config, preloadedFiles }) {
       problems.push(`Отброшено файлов: ${rejected}. Поддерживается только ${config.sourceName}.`);
     }
 
-    const withIds = filtered.map((file, idx) => ({
+    // Бэкенд отвечает 400 на файл тяжелее 50 МБ, а сборку PDF лимитирует по
+    // сумме всех файлов: они уходят одним запросом. Узнавать об этом при
+    // отправке поздно — список уже собран, а запросы уже ушли.
+    const maxBytes = MAX_FILE_SIZE_MB * 1024 * 1024;
+    const perFile = filtered.filter((file) => file.size <= maxBytes);
+
+    if (filtered.length - perFile.length > 0) {
+      problems.push(`Отброшено файлов: ${filtered.length - perFile.length} тяжелее ${MAX_FILE_SIZE_MB} МБ.`);
+    }
+
+    let kept = perFile;
+    if (config.target === 'pdf') {
+      let budget = maxBytes - files.reduce((acc, item) => acc + item.file.size, 0);
+      kept = perFile.filter((file) => {
+        if (file.size > budget) return false;
+        budget -= file.size;
+        return true;
+      });
+      if (kept.length < perFile.length) {
+        problems.push(`PDF собирается одним запросом, поэтому суммарный вес файлов не больше ${MAX_FILE_SIZE_MB} МБ: добавлено ${kept.length} из ${perFile.length}.`);
+      }
+    }
+
+    if (perFile.length === 0) {
+      setError(problems.join(' '));
+      return;
+    }
+
+    const withIds = kept.map((file, idx) => ({
       id: `${file.name}-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 7)}`,
       file
     }));
@@ -409,7 +438,7 @@ export default function ConverterForm({ config, preloadedFiles }) {
           {isLoading ? 'Обработка файлов на сервере...' : isDragActive ? 'Сбросьте файлы сюда' : 'Перетащите файлы сюда или нажмите для выбора'}
         </span>
         <span className="text-xs text-text-secondary font-normal mt-2">
-          {isLoading ? 'Пожалуйста, не закрывайте вкладку' : `Поддерживаются только файлы с расширением ${config.sourceName} (Макс: ${config.maxFiles} шт.)`}
+          {isLoading ? 'Пожалуйста, не закрывайте вкладку' : `Поддерживаются только файлы с расширением ${config.sourceName} (Макс: ${config.maxFiles} шт., ${MAX_FILE_SIZE_MB} МБ${config.target === 'pdf' ? ' суммарно' : ' на файл'})`}
         </span>
       </div>
 

@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SUPPORTED_TOOLS } from '../config/tools';
+import { SUPPORTED_TOOLS, MAX_FILE_SIZE_MB } from '../config/tools';
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -14,9 +14,6 @@ export default function HomePage() {
 
   // Стейт для интерактивного FAQ аккордеона (хранит индекс открытого вопроса)
   const [openFaqIndex, setOpenFaqIndex] = useState(null);
-
-  // Ограничения для безопасности сервера
-  const MAX_TOTAL_SIZE_MB = 50;
 
   // Лимиты количества файлов берём из конфигурации инструментов,
   // чтобы текст страницы не расходился с реальным поведением формы
@@ -41,7 +38,7 @@ export default function HomePage() {
     },
     {
       q: 'Есть ли ограничения на размер или количество файлов?',
-      a: `Да: количество файлов зависит от инструмента — от ${MIN_FILES_LIMIT} файлов для иконок ICO до ${MAX_FILES_LIMIT} для WebP. Суммарный вес файлов в одной операции не должен превышать ${MAX_TOTAL_SIZE_MB} МБ.`
+      a: `Да: количество файлов зависит от инструмента — от ${MIN_FILES_LIMIT} файлов для иконок ICO до ${MAX_FILES_LIMIT} для WebP. Файл тяжелее ${MAX_FILE_SIZE_MB} МБ сервер не принимает, а в инструментах «картинки в PDF» этот потолок считается по суммарному весу всех страниц: они уходят на сервер одним запросом.`
     },
     {
       q: 'Нужно ли платить за использование сервиса?',
@@ -94,9 +91,13 @@ export default function HomePage() {
       return;
     }
 
-    const totalSizeMb = filesArray.reduce((acc, file) => acc + file.size, 0) / (1024 * 1024);
-    if (totalSizeMb > MAX_TOTAL_SIZE_MB) {
-      setError(`Общий вес файлов превышает ${MAX_TOTAL_SIZE_MB} МБ. Пожалуйста, сожмите файлы или загружайте их частями.`);
+    // Цель ещё не выбрана, поэтому здесь проверяем то, что верно для любого
+    // инструмента: файл тяжелее лимита не примет ни один эндпоинт. Суммарный
+    // вес считаем на кнопке перехода — там уже известен целевой формат.
+    const maxBytes = MAX_FILE_SIZE_MB * 1024 * 1024;
+    const tooHeavy = filesArray.filter((file) => file.size > maxBytes);
+    if (tooHeavy.length > 0) {
+      setError(`Файлов тяжелее ${MAX_FILE_SIZE_MB} МБ: ${tooHeavy.length}. Пожалуйста, сожмите их или загружайте частями.`);
       return;
     }
 
@@ -117,6 +118,13 @@ export default function HomePage() {
 
   const handleProceed = () => {
     if (!detectedSource || !targetFormat || selectedFiles.length === 0) return;
+    if (targetFormat === 'pdf') {
+      const totalBytes = selectedFiles.reduce((acc, file) => acc + file.size, 0);
+      if (totalBytes > MAX_FILE_SIZE_MB * 1024 * 1024) {
+        setError(`В PDF файлы собираются одним запросом, поэтому их суммарный вес не должен превышать ${MAX_FILE_SIZE_MB} МБ. Уберите часть файлов или сожмите их.`);
+        return;
+      }
+    }
     const toolSlug = `${detectedSource}-to-${targetFormat}`;
     navigate(`/tool/${toolSlug}`, {
       state: { preloadedFiles: selectedFiles }
@@ -180,7 +188,7 @@ export default function HomePage() {
               Перетащите файлы сюда или <span className="text-primary font-semibold">выберите на устройстве</span>
             </p>
             <p className="text-xs text-text-secondary mt-2">
-              Макс. размер: {MAX_TOTAL_SIZE_MB} МБ суммарно. Поддерживаются PDF, JPG, PNG, WebP, TIFF, ICO, BMP, HEIC
+              Макс. размер: {MAX_FILE_SIZE_MB} МБ на файл, для сборки PDF — суммарно. Поддерживаются PDF, JPG, PNG, WebP, TIFF, ICO, BMP, HEIC
             </p>
           </div>
         ) : (

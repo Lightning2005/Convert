@@ -86,17 +86,21 @@ class ConverterAPITestBase(APITestCase):
         if os.path.exists(path):
             os.remove(path)
 
-    def create_test_pdf_upload(self):
-        img_path = os.path.join(TMP_DIR, f'test_page_{os.getpid()}.jpg')
+    def create_test_pdf_upload(self, pages=1):
         pdf_path = os.path.join(TMP_DIR, f'test_source_{os.getpid()}.pdf')
+        img_paths = [
+            os.path.join(TMP_DIR, f'test_page_{os.getpid()}_{index}.jpg')
+            for index in range(pages)
+        ]
         # Фикстуры пишутся в рабочий tmp_files: после прогона их оставлять нельзя,
         # иначе там копятся файлы, которые приложение никогда не создавало.
-        self.addCleanup(self.remove_quietly, img_path)
         self.addCleanup(self.remove_quietly, pdf_path)
 
-        img = Image.new('RGB', (100, 100), color='red')
-        img.save(img_path, format='JPEG')
-        services.convert_images_to_pdf([img_path], pdf_path)
+        for img_path in img_paths:
+            self.addCleanup(self.remove_quietly, img_path)
+            Image.new('RGB', (100, 100), color='red').save(img_path, format='JPEG')
+
+        services.convert_images_to_pdf(img_paths, pdf_path)
 
         with open(pdf_path, 'rb') as pdf_file:
             return SimpleUploadedFile('test.pdf', pdf_file.read(), content_type='application/pdf')
@@ -275,6 +279,34 @@ class PdfToImagesAPITestCase(ConverterAPITestBase):
 
         with zipfile.ZipFile(io.BytesIO(zip_content)) as archive:
             self.assertTrue(any(name.endswith('.webp') for name in archive.namelist()))
+
+    def test_chunked_rendering_keeps_page_numbering(self):
+        """Рендер чанками не должен сдвинуть или потерять нумерацию страниц."""
+        url = reverse('pdf_to_images')
+        data = {'pdf': self.create_test_pdf_upload(pages=5), 'target': 'png'}
+
+        with patch('converter.strategies.PAGE_CHUNK', 2):
+            download_response = self.submit_and_download(url, data)
+
+        zip_content = b''.join(download_response.streaming_content)
+        with zipfile.ZipFile(io.BytesIO(zip_content)) as archive:
+            numbers = sorted(int(name.split('_')[1].split('.')[0]) for name in archive.namelist())
+
+        self.assertEqual(numbers, [1, 2, 3, 4, 5])
+
+    def test_pdf_without_pages_fails_instead_of_empty_zip(self):
+        """0 страниц → внятная ошибка, а не SUCCESS с пустым архивом."""
+        url = reverse('pdf_to_images')
+        data = {'pdf': self.create_test_pdf_upload(), 'target': 'jpg'}
+
+        with patch('converter.strategies.pdfinfo_from_path', return_value={'Pages': 0}):
+            post_response = self.client.post(url, data, format='multipart')
+            status_response = self.client.get(
+                reverse('task_status', kwargs={'task_id': post_response.data['task_id']})
+            )
+
+        self.assertEqual(status_response.data['status'], 'FAILURE', status_response.data)
+        self.assertEqual(status_response.data['error'], 'В документе нет страниц.')
 
     def test_pdf_to_images_invalid_target(self):
         url = reverse('pdf_to_images')

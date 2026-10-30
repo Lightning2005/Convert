@@ -7,7 +7,7 @@ from PIL import Image, ImageOps
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
-from pdf2image import convert_from_path
+from pdf2image import convert_from_path, pdfinfo_from_path
 from pillow_heif import register_heif_opener
 
 # Регистрация плагина для поддержки HEIC
@@ -15,6 +15,11 @@ register_heif_opener()
 
 # Максимальный размер слоя ICO, который понимает Windows
 ICO_SIZE = 256
+
+# Страниц PDF в памяти одновременно. convert_from_path возвращает список всех
+# отрендеренных страниц: 100 страниц A4 при 200 dpi это ~1,2 ГиБ, и пик на
+# 100-страничном документе весом 45 КБ доходил до 3,2 ГиБ воркера.
+PAGE_CHUNK = 10
 
 
 def _save_as_ico(img: Image.Image, output_path: str) -> None:
@@ -108,19 +113,31 @@ class PdfToImagesConverter(BaseConverter):
         else:
             raise ValueError(f"Формат {target_format} не поддерживается для PDF.")
 
-        pages = convert_from_path(input_path, poppler_path=poppler_path)
+        page_count = pdfinfo_from_path(input_path, poppler_path=poppler_path)['Pages']
+        if not page_count:
+            raise ValueError('В документе нет страниц.')
 
         with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            for index, page in enumerate(pages):
-                img_buffer = io.BytesIO()
-                if pil_format == 'JPEG':
-                    page.save(img_buffer, format='JPEG', quality=90)
-                elif pil_format == 'WEBP':
-                    page.save(img_buffer, format='WEBP')
-                else:
-                    page.save(img_buffer, format='PNG')
+            for first_page in range(1, page_count + 1, PAGE_CHUNK):
+                pages = convert_from_path(
+                    input_path,
+                    poppler_path=poppler_path,
+                    first_page=first_page,
+                    last_page=min(first_page + PAGE_CHUNK - 1, page_count),
+                )
 
-                zip_file.writestr(f"page_{index + 1}.{file_ext}", img_buffer.getvalue())
+                for offset, page in enumerate(pages):
+                    img_buffer = io.BytesIO()
+                    if pil_format == 'JPEG':
+                        page.save(img_buffer, format='JPEG', quality=90)
+                    elif pil_format == 'WEBP':
+                        page.save(img_buffer, format='WEBP')
+                    else:
+                        page.save(img_buffer, format='PNG')
+
+                    index = first_page + offset
+                    zip_file.writestr(f"page_{index}.{file_ext}", img_buffer.getvalue())
+                    page.close()
 
 
 class GenericImageConverter(BaseConverter):

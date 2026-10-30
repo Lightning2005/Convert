@@ -2,6 +2,7 @@ import os, time
 from celery import shared_task
 from django.conf import settings
 from . import services  # Исправлен пробел
+from .errors import describe_failure
 
 # Путь будет динамическим: /app/tmp_files в Докере или папка tmp_files в корне твоего бэкенда на Windows
 TMP_DIR = os.path.join(settings.BASE_DIR, 'tmp_files')
@@ -23,7 +24,7 @@ def images_to_pdf_task(self, image_paths: list, output_filename: str):
         services.convert_images_to_pdf(image_paths, output_path)
         return {"status": "SUCCESS", "result_file": output_filename}
     except Exception as e:
-        return {"status": "FAILURE", "error": str(e)}
+        return {"status": "FAILURE", "error": describe_failure(e)}
     finally:
         # Исходные картинки больше не нужны — удаляем
         cleanup_files(image_paths)
@@ -41,7 +42,7 @@ def pdf_to_images_task(self, pdf_path: str, output_filename: str, target_format:
         )
         return {"status": "SUCCESS", "result_file": output_filename}
     except Exception as e:
-        return {"status": "FAILURE", "error": str(e)}
+        return {"status": "FAILURE", "error": describe_failure(e)}
     finally:
         cleanup_files([pdf_path])
 
@@ -53,7 +54,7 @@ def generic_convert_task(self, input_path: str, output_filename: str, target_for
         services.convert_image(input_path, output_path, target_format)
         return {"status": "SUCCESS", "result_file": output_filename}
     except Exception as e:
-        return {"status": "FAILURE", "error": str(e)}
+        return {"status": "FAILURE", "error": describe_failure(e)}
     finally:
         cleanup_files([input_path])
 

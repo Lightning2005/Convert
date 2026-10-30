@@ -9,13 +9,14 @@ from urllib.parse import urlparse
 from django.conf import settings
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import override_settings
+from django.test import override_settings, SimpleTestCase
 from django.urls import reverse
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from rest_framework.test import APITestCase
 from rest_framework.throttling import SimpleRateThrottle
 
 from . import services
+from .errors import describe_failure, GENERIC_FAILURE
 
 TMP_DIR = os.path.join(settings.BASE_DIR, 'tmp_files')
 
@@ -435,6 +436,18 @@ class TaskSystemAPITestCase(ConverterAPITestBase):
         self.assertTrue(status_response.data['download_url'].startswith('/api/download/'),
                         status_response.data['download_url'])
 
+    def test_failure_message_hides_internal_paths(self):
+        """Pillow пишет «cannot identify image file '/app/tmp_files/<uuid>.png'»."""
+        broken = SimpleUploadedFile('broken.png', b'not an image at all', content_type='image/png')
+        task_id = self.submit_conversion(file=broken, target='jpg')
+
+        response = self.client.get(reverse('task_status', kwargs={'task_id': task_id}))
+
+        self.assertEqual(response.data['status'], 'FAILURE', response.data)
+        self.assertNotIn('tmp_files', response.data['error'])
+        self.assertNotIn('/', response.data['error'])
+        self.assertIn('не удалось обработать', response.data['error'].lower())
+
     def test_download_nonexistent_file_returns_404(self):
         url = reverse('file_download', kwargs={'filename': 'nonexistent_file.pdf'})
         response = self.client.get(url)
@@ -539,3 +552,28 @@ class ThrottlingTestCase(ConverterAPITestBase):
             self.assertEqual(response.status_code, 200)
 
         self.assertEqual(self.submit_conversion().status_code, 429)
+
+
+class DescribeFailureTestCase(SimpleTestCase):
+    """Собственные сообщения стратегий доходят до клиента, библиотечные — нет."""
+
+    def test_keeps_our_own_russian_message(self):
+        error = FileNotFoundError('Не удалось найти 1 из 2 исходных файлов. Отправьте изображения заново.')
+
+        self.assertEqual(
+            describe_failure(error),
+            'Не удалось найти 1 из 2 исходных файлов. Отправьте изображения заново.',
+        )
+
+    def test_replaces_english_library_message(self):
+        error = UnidentifiedImageError("cannot identify image file '/app/tmp_files/9e5a.png'")
+
+        message = describe_failure(error)
+
+        self.assertNotIn('tmp_files', message)
+        self.assertEqual(message, GENERIC_FAILURE)
+
+    def test_collapses_multiline_poppler_stderr(self):
+        error = RuntimeError('Unable to get page count.\nSyntax Error: Invalid page count 0\n')
+
+        self.assertEqual(describe_failure(error), GENERIC_FAILURE)

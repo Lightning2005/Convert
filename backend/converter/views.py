@@ -10,6 +10,7 @@ from django.conf import settings  # Добавили импорт настрое
 from django.http import FileResponse, Http404
 from django.urls import reverse
 from celery.result import AsyncResult
+from .errors import describe_failure
 from .strategies import ConverterFactory
 
 from .tasks import images_to_pdf_task, pdf_to_images_task, generic_convert_task
@@ -97,7 +98,7 @@ def task_snapshot(task_id):
             snapshot['status'] = 'FAILURE'
             snapshot['error'] = payload.get('error', 'Unknown error during conversion')
     elif result.status == 'FAILURE':
-        snapshot['error'] = str(result.info)
+        snapshot['error'] = describe_failure(result.info)
     elif not cache.get(f'queued:{task_id}'):
         snapshot['status'] = 'UNKNOWN'
         snapshot['error'] = 'Задача не найдена: возможно, её id устарел.'

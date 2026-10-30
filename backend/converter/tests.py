@@ -61,9 +61,18 @@ class ConverterAPITestBase(APITestCase):
             content_type=mime_map.get(ext, 'application/octet-stream'),
         )
 
+    @staticmethod
+    def remove_quietly(path):
+        if os.path.exists(path):
+            os.remove(path)
+
     def create_test_pdf_upload(self):
         img_path = os.path.join(TMP_DIR, f'test_page_{os.getpid()}.jpg')
         pdf_path = os.path.join(TMP_DIR, f'test_source_{os.getpid()}.pdf')
+        # Фикстуры пишутся в рабочий tmp_files: после прогона их оставлять нельзя,
+        # иначе там копятся файлы, которые приложение никогда не создавало.
+        self.addCleanup(self.remove_quietly, img_path)
+        self.addCleanup(self.remove_quietly, pdf_path)
 
         img = Image.new('RGB', (100, 100), color='red')
         img.save(img_path, format='JPEG')
@@ -178,6 +187,7 @@ class ImagesToPdfAPITestCase(ConverterAPITestBase):
         source = os.path.join(TMP_DIR, f'present_{uuid.uuid4().hex}.jpg')
         vanished = os.path.join(TMP_DIR, f'vanished_{uuid.uuid4().hex}.jpg')
         output_filename = f'missing_source_{uuid.uuid4().hex}.pdf'
+        self.addCleanup(self.remove_quietly, source)
         Image.new('RGB', (100, 100), 'blue').save(source, format='JPEG')
 
         result = images_to_pdf_task.apply(args=[[source, vanished], output_filename]).get()

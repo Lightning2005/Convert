@@ -244,6 +244,19 @@ class PdfToImagesAPITestCase(ConverterAPITestBase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('error', response.data)
 
+    def test_pdf_to_images_target_as_file_part_is_rejected(self):
+        """DRF смешивает FILES в request.data: target-файл — это 400, а не 500."""
+        url = reverse('pdf_to_images')
+        data = {
+            'pdf': self.create_test_pdf_upload(),
+            'target': SimpleUploadedFile('target', b'jpg', content_type='text/plain'),
+        }
+
+        response = self.client.post(url, data, format='multipart')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('error', response.data)
+
     def test_pdf_to_images_file_too_large(self):
         url = reverse('pdf_to_images')
         data = {'pdf': self.create_test_pdf_upload()}
@@ -346,6 +359,18 @@ class GenericConvertAPITestCase(ConverterAPITestBase):
             'file': self.make_upload('test.png', 'PNG'),
             'target': 'pdf',
         }
+        response = self.client.post(self.url, data, format='multipart')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('error', response.data)
+
+    def test_target_as_file_part_is_rejected(self):
+        """target прилетевший файлом раньше доходил до .lower() и давал 500."""
+        data = {
+            'file': self.make_upload('test.png', 'PNG'),
+            'target': SimpleUploadedFile('target', b'png', content_type='text/plain'),
+        }
+
         response = self.client.post(self.url, data, format='multipart')
 
         self.assertEqual(response.status_code, 400)

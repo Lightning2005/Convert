@@ -47,6 +47,21 @@ def validate_extension(filename, allowed_extensions):
     return ext in allowed_extensions
 
 
+def get_text_field(data, name, default=None):
+    """Нижний регистр текстового поля запроса.
+
+    DRF подмешивает FILES в request.data, поэтому «target» может прилететь
+    файловой частью. Такое поле не строка: возвращаем None, чтобы view ответил
+    400, а не уронил запрос на .lower() об UploadedFile.
+    """
+    value = data.get(name)
+    if value is None:
+        return default
+    if isinstance(value, (list, tuple)):
+        value = value[0] if value else None
+    return value.strip().lower() if isinstance(value, str) else None
+
+
 def save_uploaded_file(file_obj) -> str:
     """Сохраняет файл на диск и возвращает абсолютный путь к нему."""
     ext = os.path.splitext(file_obj.name)[1]
@@ -147,7 +162,7 @@ class PdfToImagesView(APIView):
         if uploaded_pdf.size > MAX_FILE_SIZE_BYTES:
             return Response({"error": "Размер файла превышает лимит 50 МБ"}, status=status.HTTP_400_BAD_REQUEST)
 
-        target_format = request.data.get('target', 'jpg').lower()
+        target_format = get_text_field(request.data, 'target', 'jpg')
         if target_format not in ('jpg', 'jpeg', 'png', 'webp'):
             return Response({"error": "Поддерживаются только форматы JPG, PNG, WEBP"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -169,7 +184,7 @@ class GenericConvertView(APIView):
 
     def post(self, request, *args, **kwargs):
         uploaded_file = request.FILES.get('file')
-        target_format = request.data.get('target', '').lower()
+        target_format = get_text_field(request.data, 'target')
 
         if not uploaded_file:
             return Response({"error": "Файл не передан"}, status=status.HTTP_400_BAD_REQUEST)

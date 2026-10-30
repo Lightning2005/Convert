@@ -186,6 +186,13 @@ async function runBatch(files, { endpoint, makeForm, makeName, unit, emptyError,
     return { file, task_id };
   }));
   const jobs = posted.filter((r) => r.status === 'fulfilled').map((r) => r.value);
+  // Причина отказа есть уже у сервера («изображение слишком большое», «превышен
+  // лимит 50 МБ», «слишком много запросов») — если не удалось отправить ни один
+  // файл, показываем её, а не дежурную фразу про повреждённые файлы.
+  const sendFailure = posted
+    .filter((r) => r.status === 'rejected')
+    .map((r) => r.reason)
+    .find((reason) => reason instanceof Error && reason.name !== 'AbortError');
   const { finished, timedOut } = await pollTasks(jobs.map((job) => job.task_id), { signal });
 
   const results = await Promise.allSettled(jobs.map(async (job) => {
@@ -205,7 +212,7 @@ async function runBatch(files, { endpoint, makeForm, makeName, unit, emptyError,
   }
 
   if (done.length === 0) {
-    throw new Error(emptyError);
+    throw new Error(sendFailure?.message || emptyError);
   }
   if (done.length === 1) {
     return { ...done[0], notice };

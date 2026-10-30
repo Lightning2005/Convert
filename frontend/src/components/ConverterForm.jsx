@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { runConversion, downloadBlob } from '../services/api';
 import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers';
 
@@ -54,6 +54,10 @@ function FileItemView({
 
     if (item.file.type.startsWith('image/')) {
       const url = URL.createObjectURL(item.file);
+      // Объектный URL живёт вне React, и создать его нужно вместе с превью:
+      // в render это было бы нечистое побочное действие, которое потеряется
+      // при прерванном рендере.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setThumbUrl(url);
       return () => URL.revokeObjectURL(url);
     }
@@ -152,11 +156,19 @@ function SortableFileItem({ id, item, index, onRemove, isLoading, isSortableEnab
   );
 }
 
-export default function ConverterForm({ config, slug, preloadedFiles }) {
-  const [files, setFiles] = useState([]);
+export default function ConverterForm({ config, preloadedFiles }) {
+  // Форма пересоздаётся под каждый инструмент (key={slug} в ConverterPage), а файлы
+  // приходят вместе с переходом с главной, поэтому список собирается один раз при
+  // инициализации состояния — эффекта-синхронизатора здесь быть не должно.
+  const [files, setFiles] = useState(() => (preloadedFiles ?? []).slice(0, config.maxFiles).map((file, idx) => ({
+    id: `preload-${idx}-${file.name}-${file.size}`,
+    file
+  })));
   const [activeId, setActiveId] = useState(null); // <-- Храним ID файла, который сейчас тащат
   const [isDragActive, setIsDragActive] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() => (files.length < (preloadedFiles?.length ?? 0)
+    ? `Этот инструмент принимает не более ${config.maxFiles} файлов, поэтому взяты первые ${files.length}.`
+    : ''));
   const [notice, setNotice] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef(null);
@@ -172,20 +184,6 @@ export default function ConverterForm({ config, slug, preloadedFiles }) {
       },
     })
   );
-
-  useEffect(() => {
-    if (!preloadedFiles || preloadedFiles.length === 0) return;
-
-    const accepted = preloadedFiles.slice(0, config.maxFiles);
-    setFiles(accepted.map((file, idx) => ({
-      id: `preload-${idx}-${file.name}-${file.size}`,
-      file
-    })));
-
-    if (accepted.length < preloadedFiles.length) {
-      setError(`Этот инструмент принимает не более ${config.maxFiles} файлов, поэтому взяты первые ${accepted.length}.`);
-    }
-  }, [preloadedFiles, slug]);
 
   useEffect(() => {
     const handleWindowDragOver = (e) => e.preventDefault();

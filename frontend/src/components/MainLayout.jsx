@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { SUPPORTED_TOOLS } from '../config/tools';
 import CookieNotice from './CookieNotice';
@@ -20,6 +20,9 @@ export default function MainLayout({ children }) {
   const [floorDismissed, setFloorDismissed] = useState(false);
 
   useEffect(() => {
+    // sessionStorage недоступен на сервере, поэтому флаг «рекламу уже закрыли»
+    // читаем после гидратации — до неё слой отрисован как открытый.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFloorDismissed(sessionStorage.getItem(FLOOR_AD_KEY) === '1');
   }, []);
 
@@ -50,6 +53,9 @@ export default function MainLayout({ children }) {
 
   // Закрытие мобильного меню при смене страницы
   useEffect(() => {
+    // Ссылка в drawer — не единственный способ уйти со страницы: остаются
+    // «назад»/«вперёд» и программный переход, поэтому закрываем по location.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMobileMenuOpen(false);
   }, [location]);
 

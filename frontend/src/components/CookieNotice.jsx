@@ -11,6 +11,10 @@ export default function CookieNotice() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
+    // localStorage есть только в браузере: решение о показе принимается после
+    // гидратации, иначе статический HTML разошёлся бы с первым клиентским
+    // рендером.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (localStorage.getItem(STORAGE_KEY) !== '1') setVisible(true);
   }, []);
 

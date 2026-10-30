@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { SUPPORTED_TOOLS } from '../config/tools';
 import ConverterForm from '../components/ConverterForm';
@@ -25,5 +25,5 @@ export default function ConverterPage() {
   }
 
   // Передаем настройки и предзагруженные файлы в форму
-  return <ConverterForm key={slug} config={toolConfig} slug={slug} preloadedFiles={preloadedFiles} />;
+  return <ConverterForm key={slug} config={toolConfig} preloadedFiles={preloadedFiles} />;
 }

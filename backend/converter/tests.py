@@ -607,6 +607,45 @@ class TaskSystemAPITestCase(ConverterAPITestBase):
         self.assertEqual(response.status_code, 202)
         self.assertEqual(calls, ['mark', 'enqueue'])
 
+    def test_redelivered_task_keeps_the_finished_result(self):
+        """Celery отдаёт сообщение как минимум один раз, а исходник уже удалён."""
+        from .tasks import generic_convert_task
+
+        source = os.path.join(tmp_dir(), f'source_{uuid.uuid4().hex}.png')
+        output_filename = f'redelivered_{uuid.uuid4().hex}.jpg'
+        output_path = os.path.join(tmp_dir(), output_filename)
+        self.addCleanup(self.remove_quietly, source)
+        self.addCleanup(self.remove_quietly, output_path)
+        Image.new('RGB', (10, 10), 'red').save(source, format='PNG')
+
+        first = generic_convert_task.apply(args=[source, output_filename, 'jpg']).get()
+        self.assertEqual(first['status'], 'SUCCESS', first)
+        self.assertFalse(os.path.exists(source), 'исходники чистятся после обработки')
+
+        # Повторная доставка: воркер умер до ack. Задача уже не может
+        # конвертировать — исходников нет, — но обязана вернуть тот же успех.
+        again = generic_convert_task.apply(args=[source, output_filename, 'jpg']).get()
+
+        self.assertEqual(again['status'], 'SUCCESS', again)
+        self.assertEqual(again['result_file'], output_filename)
+        self.assertTrue(os.path.isfile(output_path))
+
+    def test_partial_output_is_never_published(self):
+        """Недописанный файл нельзя принять за готовый результат."""
+        from .tasks import generic_convert_task
+
+        source = os.path.join(tmp_dir(), f'source_{uuid.uuid4().hex}.png')
+        output_filename = f'partial_{uuid.uuid4().hex}.jpg'
+        self.addCleanup(self.remove_quietly, source)
+        Image.new('RGB', (10, 10), 'red').save(source, format='PNG')
+
+        with patch('converter.services.convert_image', side_effect=RuntimeError('упал в середине')):
+            result = generic_convert_task.apply(args=[source, output_filename, 'jpg']).get()
+
+        self.assertEqual(result['status'], 'FAILURE')
+        self.assertFalse(os.path.exists(os.path.join(tmp_dir(), output_filename)))
+        self.assertFalse(os.path.exists(os.path.join(tmp_dir(), output_filename) + '.part'))
+
     def test_batch_status_returns_snapshot_per_id(self):
         done_id = self.submit_conversion(file=self.make_upload('test.png', 'PNG'), target='jpg')
 

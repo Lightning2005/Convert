@@ -24,6 +24,7 @@ from rest_framework.throttling import SimpleRateThrottle
 from . import services
 from .checks import check_tmp_files_writable
 from .errors import describe_failure, GENERIC_FAILURE
+from .views import document_title
 
 # Рабочие файлы тестов живут в отдельном каталоге, а не в backend/tmp_files:
 # иначе прогон оставляет в рабочем каталоге фикстуры, которые приложение никогда
@@ -140,6 +141,29 @@ class ConverterAPITestBase(APITestCase):
         self.assertEqual(download_response.status_code, 200)
         return download_response
 
+    @staticmethod
+    def pdf_title(raw: bytes) -> str:
+        """/Title из словаря метаданных: то, что просмотрщик пишет в заголовке вкладки."""
+        match = re.search(rb'/Title\s*\(((?:\\.|[^\\)])*)\)', raw, re.S)
+        if not match:
+            return ''
+
+        def undo(escape):
+            seq = escape.group(1)
+            if seq[:1] in (b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7'):
+                return bytes([int(seq, 8)])
+            if seq in (b'\r\n', b'\n', b'\r'):
+                # Перенос длинной строки внутри литерала ничего не означает.
+                return b''
+            return {b'n': b'\n', b'r': b'\r', b't': b'\t', b'b': b'\b', b'f': b'\f'}.get(seq, seq)
+
+        # reportlab кодирует не-ASCII как UTF-16BE и выводит байты восьмеричными
+        # escape-последовательностями: '\376\377\004?' вместо кириллицы.
+        value = re.sub(rb'\\([0-7]{1,3}|\r\n|\r|n|\t|b|f|\(|\)|\\)', undo, match.group(1), flags=re.S)
+        if value.startswith(b'\xfe\xff'):
+            return value[2:].decode('utf-16-be')
+        return value.decode('latin-1')
+
 
 @override_settings(**CELERY_TEST_SETTINGS)
 class ImagesToPdfAPITestCase(ConverterAPITestBase):
@@ -181,6 +205,31 @@ class ImagesToPdfAPITestCase(ConverterAPITestBase):
             width = parts[2] - parts[0]
             height = parts[3] - parts[1]
             self.assertGreater(height, width, 'Каждая страница должна быть portrait A4')
+
+    def test_single_source_names_the_document(self):
+        """Без /Title просмотрщик показывает дефолт reportlab — 'untitled'."""
+        url = reverse('images_to_pdf')
+        data = {'images': [self.make_upload('паспорт 2026.jpg', 'JPEG')]}
+
+        download_response = self.submit_and_download(url, data)
+        pdf_content = b''.join(download_response.streaming_content)
+
+        self.assertEqual(self.pdf_title(pdf_content), 'паспорт 2026')
+        self.assertNotIn(b'untitled', pdf_content)
+
+    def test_multiple_sources_share_the_generic_title(self):
+        url = reverse('images_to_pdf')
+        data = {
+            'images': [
+                self.make_upload('page-1.jpg', 'JPEG'),
+                self.make_upload('page-2.jpg', 'JPEG'),
+            ]
+        }
+
+        download_response = self.submit_and_download(url, data)
+        pdf_content = b''.join(download_response.streaming_content)
+
+        self.assertEqual(self.pdf_title(pdf_content), 'converted_images')
 
     def test_conversion_fails_without_images(self):
         url = reverse('images_to_pdf')
@@ -810,6 +859,36 @@ class TmpFilesWritableCheckTestCase(SimpleTestCase):
 
         self.assertEqual([error.id for error in errors], ['converter.E001'])
         self.assertIn('chown', errors[0].hint)
+
+
+class DocumentTitleTestCase(SimpleTestCase):
+    """Имя исходника попадает в метаданные PDF — его чистим перед записью."""
+
+    def test_strips_extension(self):
+        self.assertEqual(document_title(['IMG_2043.jpeg']), 'IMG_2043')
+
+    def test_keeps_name_without_extension(self):
+        self.assertEqual(document_title(['report']), 'report')
+
+    def test_multiple_sources_get_the_generic_name(self):
+        self.assertEqual(document_title(['a.jpg', 'b.jpg']), 'converted_images')
+
+    def test_trims_path_to_the_file_name(self):
+        self.assertEqual(document_title(['/var/tmp/отчёт.jpg']), 'отчёт')
+        self.assertEqual(document_title(['C:\\Users\\mark\\scan.png']), 'scan')
+
+    def test_drops_control_and_bidi_characters(self):
+        """Имя приходит от клиента, а читает его просмотрщик, а не файловая система."""
+        self.assertEqual(document_title(['a\u202eb.jpg']), 'ab')
+        self.assertEqual(document_title(['\x00\x1bотчёт.jpg']), 'отчёт')
+
+    def test_name_without_a_body_falls_back(self):
+        self.assertEqual(document_title(['.jpg']), 'converted_images')
+        self.assertEqual(document_title(['   ']), 'converted_images')
+        self.assertEqual(document_title(['']), 'converted_images')
+
+    def test_length_is_capped(self):
+        self.assertEqual(len(document_title(['x' * 300 + '.jpg'])), 100)
 
 
 class DescribeFailureTestCase(SimpleTestCase):

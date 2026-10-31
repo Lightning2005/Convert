@@ -64,6 +64,9 @@ class ImagesToPdfConverter(BaseConverter):
             )
 
         pdf_canvas = canvas.Canvas(output_path)
+        # Без этого в /Title остаётся дефолт reportlab ('untitled'), и
+        # просмотрщик показывает его вместо имени файла.
+        pdf_canvas.setTitle(kwargs.get('document_title') or 'converted_images')
         page_width, page_height = A4
 
         for path in input_path:

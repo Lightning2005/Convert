@@ -1,9 +1,9 @@
 from .strategies import ConverterFactory
 
-def convert_images_to_pdf(image_paths: list, output_path: str):
+def convert_images_to_pdf(image_paths: list, output_path: str, document_title: str = 'converted_images'):
     """Сохраняем сигнатуру для Celery-таски, делегируя логику стратегии."""
     converter = ConverterFactory.get_by_action('images_to_pdf')
-    converter.convert(image_paths, output_path)
+    converter.convert(image_paths, output_path, document_title=document_title)
 
 
 def convert_pdf_to_images(pdf_path: str, output_path: str, target_format='jpg', poppler_path=None):

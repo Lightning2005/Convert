@@ -38,14 +38,14 @@ def is_already_done(output_path: str) -> bool:
 
 
 @shared_task(bind=True)
-def images_to_pdf_task(self, image_paths: list, output_filename: str):
+def images_to_pdf_task(self, image_paths: list, output_filename: str, document_title: str = 'converted_images'):
     output_path = os.path.join(tmp_dir(), output_filename)
     # Конвертим в .part и публикуем через os.replace: иначе повтор мог бы
     # принять за готовый результат недописанный файл предыдущей попытки.
     part_path = f'{output_path}.part'
     try:
         if not is_already_done(output_path):
-            services.convert_images_to_pdf(image_paths, part_path)
+            services.convert_images_to_pdf(image_paths, part_path, document_title)
             os.replace(part_path, output_path)
         return {"status": "SUCCESS", "result_file": output_filename}
     except Exception as e:

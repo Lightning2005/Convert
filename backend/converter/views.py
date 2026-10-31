@@ -1,4 +1,6 @@
 import os
+import re
+import unicodedata
 import uuid
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -98,6 +100,22 @@ def too_many_pixels_message(name, size):
             f"Потолок — {MAX_IMAGE_PIXELS // 1_000_000} Мпикс.")
 
 
+def document_title(names: list) -> str:
+    """Заголовок внутри PDF — он же подпись вкладки у просмотрщика.
+
+    reportlab пишет /Title untitled, и Chrome/Edge/Acrobat показывают его
+    вместо имени файла. Правило имени скачанного файла живёт на клиенте
+    (services/api.js): один исходник — его имя без расширения, несколько —
+    converted_images. Имя приходит от пользователя, а попадает в метаданные
+    документа, поэтому обрезаем путь и управляющие символы.
+    """
+    raw = names[0] if len(names) == 1 else 'converted_images'
+    base = re.split(r'[/\\]', str(raw))[-1]
+    base = ''.join(ch for ch in base if unicodedata.category(ch)[0] != 'C')
+    base = re.sub(r'\.[^.]*$', '', base).strip()
+    return (base or 'converted_images')[:100]
+
+
 # Пока воркер не начал задачу, Celery отдаёт по её id состояние PENDING — точно
 # такое же, как по несуществующему id. Метка в кэше различает их: «ждёт своей
 # очереди» против «такой задачи мы никогда не принимали».
@@ -195,8 +213,9 @@ class ImagesToPdfView(APIView):
                                 status=status.HTTP_400_BAD_REQUEST)
 
         output_filename = f"converted_images_{uuid.uuid4()}.pdf"
+        title = document_title([img.name for img in uploaded_images])
 
-        task = enqueue_task(images_to_pdf_task, saved_paths, output_filename)
+        task = enqueue_task(images_to_pdf_task, saved_paths, output_filename, title)
 
         return Response({
             "message": "Изображения приняты в обработку.",

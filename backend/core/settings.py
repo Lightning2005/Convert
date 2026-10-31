@@ -110,7 +110,9 @@ WSGI_APPLICATION = 'core.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        # В Docker файл базы нужно класть на том: /app в prod-контейнере — часть
+        # образа, и всё, что туда записалось, теряется при пересборке.
+        'NAME': os.environ.get('DJANGO_DB_PATH') or BASE_DIR / 'db.sqlite3',
     }
 }
 
@@ -150,6 +152,11 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Файлы админки Django отдаёт сам только при DEBUG=1. В проде их собирает
+# collectstatic, а раздаёт nginx (или другой веб-сервер) — иначе /admin приходит
+# без css и выглядит сломанной.
+STATIC_ROOT = os.environ.get('DJANGO_STATIC_ROOT') or str(BASE_DIR / 'staticfiles')
 
 # НАСТРОЙКИ ДЛЯ MVP (Июнь 2026)
 

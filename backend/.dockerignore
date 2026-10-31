@@ -1,0 +1,30 @@
+# В образ не должно попасть ничего из локального состояния: без этих строк
+# COPY . /app/ уносил в слои рабочую базу, ключи из .env и tmp_files с
+# чужими загруженными файлами (в одном из прогонов там лежало 60 картинок).
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+.venv/
+venv/
+env/
+
+.env
+.env.local
+db.sqlite3
+db.sqlite3-journal
+tmp_files/
+staticfiles/
+celerybeat-schedule*
+
+.git/
+.gitignore
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+Dockerfile
+docker-compose*.yml
+.dockerignore

@@ -1,0 +1,90 @@
+# Продовый запуск: docker compose -f docker-compose.prod.yml up -d --build
+#
+# Отличия от dev-файла:
+#   • код не монтируется с хоста — он запечён в образ, а вместе с ним в образ не
+#     попадает локальная база, .env и tmp_files (см. .dockerignore);
+#   • веб поднимается gunicorn'ом вместо runserver: у runserver один поток, он
+#     не переживает перезагрузку воркера и отдаёт страницу индекс-файла каталога;
+#   • контейнеры работают от пользователя app без прав root;
+#   • база и рабочие файлы лежат на именованных томах и переживают пересборку;
+#   • без DJANGO_SECRET_KEY и DJANGO_ALLOWED_HOSTS compose падает сразу, а не
+#     молча поднимает прод на девелперских настройках.
+x-django-env: &django-env
+  CELERY_BROKER_URL: redis://redis:6379/0
+  CELERY_RESULT_BACKEND: redis://redis:6379/0
+  DJANGO_CACHE_URL: ${DJANGO_CACHE_URL:-redis://redis:6379/1}
+  DJANGO_DEBUG: ${DJANGO_DEBUG:-0}
+  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Задайте DJANGO_SECRET_KEY — девелперский ключ в git}
+  DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?Задайте домен сайта через запятую}
+  DJANGO_DB_PATH: /app/data/db.sqlite3
+  DJANGO_STATIC_ROOT: /app/staticfiles
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+  DJANGO_ENABLE_ADMIN: ${DJANGO_ENABLE_ADMIN:-}
+  THROTTLE_CONVERT: ${THROTTLE_CONVERT:-}
+  THROTTLE_POLL: ${THROTTLE_POLL:-}
+  THROTTLE_DOWNLOAD: ${THROTTLE_DOWNLOAD:-}
+  # За nginx, который перезаписывает X-Forwarded-For. Без этой настройки все
+  # пользователи делят один бакет лимитера и получают 429.
+  DJANGO_NUM_PROXIES: ${DJANGO_NUM_PROXIES:-1}
+  TMP_FILES_DIR: ${TMP_FILES_DIR:-}
+  TMP_FILE_TTL_SECONDS: ${TMP_FILE_TTL_SECONDS:-}
+
+services:
+  redis:
+    image: redis:alpine
+    container_name: konvert_redis_prod
+    command: redis-server --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  web:
+    build: .
+    container_name: konvert_web_prod
+    # Миграции и collectstatic перед стартом: образ неизменяем, поэтому статику
+    # админки нужно собрать в том при подъёме контейнера.
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120
+             --access-logfile - --error-logfile -"
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - app_data:/app/data
+      - staticfiles:/app/staticfiles
+      - tmp_files:/app/tmp_files
+    environment: *django-env
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  celery_worker:
+    build: .
+    container_name: konvert_celery_prod
+    # --max-tasks-per-child: Pillow держит растры в памяти, и после серии
+    # больших файлов воркер отдаёт их неохотно — процесс перезапускается сам.
+    command: celery -A core worker --loglevel=warning --max-tasks-per-child 50
+    volumes:
+      - tmp_files:/app/tmp_files
+    environment: *django-env
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  celery_beat:
+    build: .
+    container_name: konvert_beat_prod
+    command: celery -A core beat --loglevel=warning --schedule=/tmp/celerybeat-schedule
+    volumes:
+      - tmp_files:/app/tmp_files
+    environment: *django-env
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+volumes:
+  tmp_files:
+  app_data:
+  staticfiles:
+  redis_data:

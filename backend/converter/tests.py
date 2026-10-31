@@ -22,6 +22,7 @@ from rest_framework.test import APITestCase
 from rest_framework.throttling import SimpleRateThrottle
 
 from . import services
+from .checks import check_tmp_files_writable
 from .errors import describe_failure, GENERIC_FAILURE
 
 # Рабочие файлы тестов живут в отдельном каталоге, а не в backend/tmp_files:
@@ -789,6 +790,26 @@ class TmpFileRetentionTestCase(ConverterAPITestBase):
         self.assertEqual(schedule, crontab(minute='*/5'))
         self.assertLessEqual(settings.TMP_FILE_TTL_SECONDS + 5 * 60, 3600)
         self.assertEqual(settings.CELERY_RESULT_EXPIRES, settings.TMP_FILE_TTL_SECONDS)
+
+
+@override_settings(**CELERY_TEST_SETTINGS)
+class TmpFilesWritableCheckTestCase(SimpleTestCase):
+    """Каталог, который контейнер не может писать, раньше было видно только по 500."""
+
+    def test_writable_directory_passes(self):
+        self.assertEqual(check_tmp_files_writable(None), [])
+
+    def test_directory_that_cannot_be_created_is_reported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            blocker = os.path.join(tmp, 'not-a-dir')
+            with open(blocker, 'w') as handle:
+                handle.write('x')
+
+            with override_settings(TMP_FILES_DIR=os.path.join(blocker, 'files')):
+                errors = check_tmp_files_writable(None)
+
+        self.assertEqual([error.id for error in errors], ['converter.E001'])
+        self.assertIn('chown', errors[0].hint)
 
 
 class DescribeFailureTestCase(SimpleTestCase):

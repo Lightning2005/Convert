@@ -22,6 +22,20 @@
 #                     после одобрения площадки, до него их не заполняют.
 #
 # Сервер должен уметь docker compose: выкатка поднимает backend/docker-compose.prod.yml.
+#
+# Первая настройка сервера (делается один раз, руками):
+#   1.клонировать репозиторий в REPO_PATH (по умолчанию /var/www/convert)
+#   2.создать backend/.env с DJANGO_SECRET_KEY и DJANGO_ALLOWED_HOSTS=<домен>;
+#     файл в .gitignore, поэтому deploy.sh не считает его грязным деревом
+#   3.положить deploy/nginx.conf в /etc/nginx/conf.d/convert.conf, подставив домен
+#     вместо konvert.example.com, затем nginx -t и reload
+#   4.`mkdir -p <WEB_ROOT>` под фронтенд и выпустить сертификат:
+#     certbot --nginx -d <домен>
+#   5.проверить `bash backend/deploy.sh` — он же первым шагом запускается здесь
+#
+# nginx отдаёт статику из WEB_ROOT и проксирует /api/ на 127.0.0.1:8000, поэтому
+# WEB_ROOT в секрете и root в nginx.conf обязаны совпадать, а бэкенд обязан стоять
+# с DJANGO_NUM_PROXIES=1 (в docker-compose.prod.yml уже по умолчанию).
 name: Deploy
 
 on:
@@ -142,8 +156,26 @@ jobs:
         run: |
           set -e
           sleep 10
-          for path in / /tool/jpg-to-pdf /privacy /sitemap.xml /robots.txt /manifest.webmanifest; do
+          for path in / /tool/jpg-to-pdf /privacy /sitemap.xml /robots.txt; do
             code=$(curl -s -o /dev/null -w '%{http_code}' "$VITE_SITE_URL$path")
             echo "$code $path"
             [ "$code" = "200" ] || exit 1
           done
+
+          # Тип манифеста проверяем отдельно: nginx из коробки отдаёт
+          # .webmanifest как application/octet-stream, и браузер перестаёт его
+          # видеть — по коду ответа هذا не поймать.
+          mime=$(curl -s -o /dev/null -w '%{content_type}' "$VITE_SITE_URL/manifest.webmanifest")
+          echo "200 /manifest.webmanifest ($mime)"
+          case "$mime" in
+            *json*) ;;
+            *) echo 'манифест пришёл не с JSON-типом — проверьте types в nginx.conf'; exit 1 ;;
+          esac
+
+          # Несуществующий адрес должен дать 404 с собранной страницей. 200 здесь
+          # означает «мягкую 404»: робот индексирует пустоту, а модератор видит
+          # сайт со сломанными ссылками.
+          code=$(curl -s -o /tmp/404.html -w '%{http_code}' "$VITE_SITE_URL/tool/net-takogo")
+          echo "$code /tool/net-takogo"
+          [ "$code" = "404" ] || exit 1
+          grep -q 'Страница не найдена' /tmp/404.html

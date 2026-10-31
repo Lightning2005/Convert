@@ -1,7 +1,9 @@
+import atexit
 import io
 import os
 import re
 import struct
+import tempfile
 import uuid
 import zipfile
 import zlib
@@ -20,7 +22,16 @@ from rest_framework.throttling import SimpleRateThrottle
 from . import services
 from .errors import describe_failure, GENERIC_FAILURE
 
-TMP_DIR = os.path.join(settings.BASE_DIR, 'tmp_files')
+# Рабочие файлы тестов живут в отдельном каталоге, а не в backend/tmp_files:
+# иначе прогон оставляет в рабочем каталоге фикстуры, которые приложение никогда
+# не создавало, и проверка «каталог чист» перестаёт что-либо значить.
+_TEST_TMP_DIR = tempfile.TemporaryDirectory(prefix='konvert-tests-', ignore_cleanup_errors=True)
+atexit.register(_TEST_TMP_DIR.cleanup)
+
+
+def tmp_dir():
+    """Каталог, который в данный момент видит приложение (см. settings.TMP_FILES_DIR)."""
+    return str(settings.TMP_FILES_DIR)
 
 
 def fake_huge_png(width=10000, height=10000):
@@ -45,6 +56,7 @@ CELERY_TEST_SETTINGS = {
     'CELERY_TASK_EAGER_PROPAGATES': True,
     'CELERY_TASK_STORE_EAGER_RESULT': True,
     'CELERY_RESULT_BACKEND': 'cache+memory://',
+    'TMP_FILES_DIR': _TEST_TMP_DIR.name,
     'CACHES': {
         'default': {
             'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
@@ -57,7 +69,7 @@ class ConverterAPITestBase(APITestCase):
     """Базовый класс с хелперами для async API (202 → status → download)."""
 
     def setUp(self):
-        os.makedirs(TMP_DIR, exist_ok=True)
+        os.makedirs(tmp_dir(), exist_ok=True)
 
     def generate_test_image(self, filename, ext='JPEG', size=(100, 100), color='blue'):
         file_buf = io.BytesIO()
@@ -87,13 +99,14 @@ class ConverterAPITestBase(APITestCase):
             os.remove(path)
 
     def create_test_pdf_upload(self, pages=1):
-        pdf_path = os.path.join(TMP_DIR, f'test_source_{os.getpid()}.pdf')
+        pdf_path = os.path.join(tmp_dir(), f'test_source_{os.getpid()}.pdf')
         img_paths = [
-            os.path.join(TMP_DIR, f'test_page_{os.getpid()}_{index}.jpg')
+            os.path.join(tmp_dir(), f'test_page_{os.getpid()}_{index}.jpg')
             for index in range(pages)
         ]
-        # Фикстуры пишутся в рабочий tmp_files: после прогона их оставлять нельзя,
-        # иначе там копятся файлы, которые приложение никогда не создавало.
+        # Фикстуры удаляем сразу: каталог тестов переживает все прогоны одного
+        # процесса, и оставшиеся в нём файлы ломают проверку «сервер ничего не
+        # забыл в tmp_files».
         self.addCleanup(self.remove_quietly, pdf_path)
 
         for img_path in img_paths:
@@ -206,7 +219,7 @@ class ImagesToPdfAPITestCase(ConverterAPITestBase):
 
     def test_giant_image_rejected_before_queueing(self):
         """За 300 МБ распакованных пикселей файл платит 300 КБ на диске."""
-        before = set(os.listdir(TMP_DIR))
+        before = set(os.listdir(tmp_dir()))
         url = reverse('images_to_pdf')
         data = {
             'images': [
@@ -223,14 +236,14 @@ class ImagesToPdfAPITestCase(ConverterAPITestBase):
         mock_delay.assert_not_called()
         # Отклонённые загрузки не должны оставаться в tmp_files (beat вправе
         # чистить старые файлы, поэтому сравниваем только появившиеся).
-        self.assertEqual(set(os.listdir(TMP_DIR)).difference(before), set())
+        self.assertEqual(set(os.listdir(tmp_dir())).difference(before), set())
 
     def test_missing_source_image_fails_instead_of_short_pdf(self):
         """Исходник мог исчезнуть из tmp_files, пока задача ждала в очереди."""
         from .tasks import images_to_pdf_task
 
-        source = os.path.join(TMP_DIR, f'present_{uuid.uuid4().hex}.jpg')
-        vanished = os.path.join(TMP_DIR, f'vanished_{uuid.uuid4().hex}.jpg')
+        source = os.path.join(tmp_dir(), f'present_{uuid.uuid4().hex}.jpg')
+        vanished = os.path.join(tmp_dir(), f'vanished_{uuid.uuid4().hex}.jpg')
         output_filename = f'missing_source_{uuid.uuid4().hex}.pdf'
         self.addCleanup(self.remove_quietly, source)
         Image.new('RGB', (100, 100), 'blue').save(source, format='JPEG')
@@ -240,7 +253,7 @@ class ImagesToPdfAPITestCase(ConverterAPITestBase):
         self.assertEqual(result['status'], 'FAILURE')
         self.assertIn('1 из 2', result['error'])
         # Укороченный PDF хуже ошибки: пользователь не заметит потерю страницы.
-        self.assertFalse(os.path.exists(os.path.join(TMP_DIR, output_filename)))
+        self.assertFalse(os.path.exists(os.path.join(tmp_dir(), output_filename)))
 
 
 @override_settings(**CELERY_TEST_SETTINGS)
@@ -537,7 +550,7 @@ class TaskSystemAPITestCase(ConverterAPITestBase):
 
     def test_download_directory_returns_404_not_500(self):
         """open() на каталоге бросал IsADirectoryError."""
-        folder = os.path.join(TMP_DIR, f'directory_{uuid.uuid4().hex}')
+        folder = os.path.join(tmp_dir(), f'directory_{uuid.uuid4().hex}')
         os.makedirs(folder, exist_ok=True)
         self.addCleanup(os.rmdir, folder)
 

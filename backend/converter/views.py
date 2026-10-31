@@ -14,7 +14,7 @@ from PIL import Image
 from .errors import describe_failure
 from .strategies import ConverterFactory
 
-from .tasks import images_to_pdf_task, pdf_to_images_task, generic_convert_task, cleanup_files
+from .tasks import images_to_pdf_task, pdf_to_images_task, generic_convert_task, cleanup_files, tmp_dir
 
 MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB
 MAX_FILES_PER_REQUEST = 50
@@ -44,8 +44,7 @@ DOWNLOAD_CONTENT_TYPES = {
     '.zip': 'application/zip',
 }
 
-# Динамический путь для совместимости Linux (Docker) / Windows
-TMP_DIR = os.path.join(settings.BASE_DIR, 'tmp_files')
+# Каталог рабочих файлов берётся из настроек: см. tmp_dir() в converter/tasks.py.
 
 
 def validate_extension(filename, allowed_extensions):
@@ -72,7 +71,7 @@ def save_uploaded_file(file_obj) -> str:
     """Сохраняет файл на диск и возвращает абсолютный путь к нему."""
     ext = os.path.splitext(file_obj.name)[1]
     unique_filename = f"{uuid.uuid4()}{ext}"
-    fs = FileSystemStorage(location=TMP_DIR)
+    fs = FileSystemStorage(location=tmp_dir())
     saved_name = fs.save(unique_filename, file_obj)
     return fs.path(saved_name)
 
@@ -293,16 +292,20 @@ class FileDownloadView(APIView):
 
     def get(self, request, filename, *args, **kwargs):
         clean_filename = os.path.basename(filename)
-        file_path = os.path.join(TMP_DIR, clean_filename)
+        file_path = os.path.join(tmp_dir(), clean_filename)
 
-        # Именно файл: os.path.exists пропускает каталог, а open() на нём даёт
-        # IsADirectoryError и 500 вместо «файл не найден».
-        if not os.path.isfile(file_path):
+        # Файл открываем сразу, а не «проверяем, потом открываем»: между этими
+        # двумя операциями его успевает удалить периодическая очистка, и честная
+        # гонка превращалась в 500 вместо 404. На каталоге Windows поднимает
+        # PermissionError, а не IsADirectoryError, как Linux.
+        try:
+            file_handle = open(file_path, 'rb')
+        except (FileNotFoundError, IsADirectoryError, NotADirectoryError, PermissionError):
             raise Http404("Файл не найден или был удален по истечении времени.")
 
         extension = os.path.splitext(clean_filename)[1].lower()
         response = FileResponse(
-            open(file_path, 'rb'),
+            file_handle,
             as_attachment=True,
             filename=clean_filename,
             content_type=DOWNLOAD_CONTENT_TYPES.get(extension),

@@ -4,22 +4,29 @@ from django.conf import settings
 from . import services  # Исправлен пробел
 from .errors import describe_failure
 
-# Путь будет динамическим: /app/tmp_files в Докере или папка tmp_files в корне твоего бэкенда на Windows
-TMP_DIR = os.path.join(settings.BASE_DIR, 'tmp_files')
+# Путь читается из настроек при каждом обращении: /app/tmp_files в Докере,
+# папка tmp_files в корне бэкенда на Windows или отдельный каталог в тестах.
+def tmp_dir() -> str:
+    return str(settings.TMP_FILES_DIR)
+
 
 def cleanup_files(paths: list):
     """Вспомогательная функция удаления файлов после обработки."""
     for path in paths:
-        if path and os.path.exists(path):
-            try:
-                os.remove(path)
-            except Exception:
-                pass
+        if not path:
+            continue
+        try:
+            # Без проверки exists(): между ней и os.remove файл успевает съесть
+            # периодическая очистка, и удаление бросало FileNotFoundError там,
+            # где конвертация уже завершилась успешно.
+            os.remove(path)
+        except OSError:
+            pass
 
 
 @shared_task(bind=True)
 def images_to_pdf_task(self, image_paths: list, output_filename: str):
-    output_path = os.path.join(TMP_DIR, output_filename)
+    output_path = os.path.join(tmp_dir(), output_filename)
     try:
         services.convert_images_to_pdf(image_paths, output_path)
         return {"status": "SUCCESS", "result_file": output_filename}
@@ -32,7 +39,7 @@ def images_to_pdf_task(self, image_paths: list, output_filename: str):
 
 @shared_task(bind=True)
 def pdf_to_images_task(self, pdf_path: str, output_filename: str, target_format: str):
-    output_path = os.path.join(TMP_DIR, output_filename)
+    output_path = os.path.join(tmp_dir(), output_filename)
     try:
         services.convert_pdf_to_images(
             pdf_path=pdf_path,
@@ -49,7 +56,7 @@ def pdf_to_images_task(self, pdf_path: str, output_filename: str, target_format:
 
 @shared_task(bind=True)
 def generic_convert_task(self, input_path: str, output_filename: str, target_format: str):
-    output_path = os.path.join(TMP_DIR, output_filename)
+    output_path = os.path.join(tmp_dir(), output_filename)
     try:
         services.convert_image(input_path, output_path, target_format)
         return {"status": "SUCCESS", "result_file": output_filename}
@@ -62,15 +69,16 @@ def generic_convert_task(self, input_path: str, output_filename: str, target_for
 @shared_task
 def clear_old_tmp_files_task():
     """Периодическая задача для очистки файлов старше 1 часа."""
-    if not os.path.exists(TMP_DIR):
+    directory = tmp_dir()
+    if not os.path.exists(directory):
         return "Directory does not exist"
 
     now = time.time()
     cutoff = now - 3600  # 1 час назад
     deleted_count = 0
 
-    for filename in os.listdir(TMP_DIR):
-        file_path = os.path.join(TMP_DIR, filename)
+    for filename in os.listdir(directory):
+        file_path = os.path.join(directory, filename)
 
         # Проверяем, что это файл, а не системная папка (например, .gitignore)
         if os.path.isfile(file_path):

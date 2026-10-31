@@ -1,0 +1,138 @@
+# Деплой «Конверта».
+#
+# Запуск — только руками (Workflow → Deploy → Run workflow), чтобы ни один push
+# в main не выкатывал прод сам собой. Если понадобится автодеплой, добавьте
+#   on: { push: { branches: [main] } }
+# и включьте protection rules для environment production — тогда ветку будет
+# держать на замке до одобрения.
+#
+# Что нужно заполнить в Settings → Secrets and variables → Actions:
+#   DEPLOY_HOST       адрес сервера (IP или домен)
+#   DEPLOY_USER       пользователь SSH
+#   DEPLOY_SSH_KEY    приватный ключ (публичный — в authorized_keys сервера)
+#   DEPLOY_KNOWN_HOSTS строка из `ssh-keyscan -t ed25519 <хост>` — без неё
+#                     unknown host в интерактивном режиме просто подвесит шаг
+#   REPO_PATH         путь к репозиторию на сервере, по умолчанию /var/www/convert
+#   WEB_ROOT          каталог, откуда nginx отдаёт фронтенд, /var/www/convert/dist
+#   VITE_SITE_URL     публичный адрес сайта без завершающего слеша
+#
+# Сервер должен уметь docker compose: выкатка поднимает backend/docker-compose.prod.yml.
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_frontend:
+        description: 'Не пересобирать и не выкладывать фронтенд'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    # Environment нужен, чтобы на него навесили protection rules (одобрение
+    # вручную или обязательный check) — настраивается в Settings → Environments.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      # Провал до первой команды, а не посередине выкатки: без этих секретов
+      # деплой либо не случится, либо случится на чужой сервер.
+      - name: Check required secrets
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          VITE_SITE_URL: ${{ secrets.VITE_SITE_URL }}
+        run: |
+          set -e
+          for pair in "DEPLOY_HOST=$DEPLOY_HOST" "DEPLOY_USER=$DEPLOY_USER" \
+                      "DEPLOY_SSH_KEY=$DEPLOY_SSH_KEY" "DEPLOY_KNOWN_HOSTS=$DEPLOY_KNOWN_HOSTS" \
+                      "VITE_SITE_URL=$VITE_SITE_URL"; do
+            name=${pair%%=*}; value=${pair#*=}
+            if [ -z "$value" ]; then
+              echo "Секрет $name не задан — см. комментарии в начале этого файла"
+              exit 1
+            fi
+          done
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -e
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - uses: actions/setup-node@v4
+        if: ${{ !inputs.skip_frontend }}
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        if: ${{ !inputs.skip_frontend }}
+        working-directory: frontend
+        env:
+          VITE_SITE_URL: ${{ secrets.VITE_SITE_URL }}
+        # Тот же прогон проверок, что в CI: на прод не должно уезжать dist без
+        # canonical, sitemap и манифеста.
+        run: |
+          npm ci
+          npm run lint
+          npm run build
+          npm run verify:dist
+
+      - name: Upload frontend to the server
+        if: ${{ !inputs.skip_frontend }}
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          WEB_ROOT: ${{ secrets.WEB_ROOT }}
+        run: |
+          set -e
+          target="${DEPLOY_USER}@${DEPLOY_HOST}:${WEB_ROOT:-/var/www/convert/dist}"
+          ssh -i ~/.ssh/id_deploy "$DEPLOY_USER@$DEPLOY_HOST" \
+            "mkdir -p '${WEB_ROOT:-/var/www/convert/dist}'"
+          # --delete: старые prerender-страницы не должны переживать удалённые
+          # маршруты, иначе удалённый инструмент остаётся в индексе.
+          rsync -az --delete -e "ssh -i ~/.ssh/id_deploy" frontend/dist/ "$target/"
+
+      - name: Restart the backend
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          REPO_PATH: ${{ secrets.REPO_PATH }}
+        # Скрипт живёт в репозитории и передаётся по stdin: так сервер делает то
+        # же самое, что видит ревьюер, и в workflow не приходится экранировать
+        # многострочный удалённый код.
+        run: |
+          set -e
+          ssh -i ~/.ssh/id_deploy "$DEPLOY_USER@$DEPLOY_HOST" \
+            "REPO_PATH='${REPO_PATH:-/var/www/convert}' bash -s" < backend/deploy.sh
+
+      - name: Smoke test
+        env:
+          VITE_SITE_URL: ${{ secrets.VITE_SITE_URL }}
+        run: |
+          set -e
+          sleep 10
+          for path in / /tool/jpg-to-pdf /privacy /sitemap.xml /robots.txt /manifest.webmanifest; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$VITE_SITE_URL$path")
+            echo "$code $path"
+            [ "$code" = "200" ] || exit 1
+          done

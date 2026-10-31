@@ -8,6 +8,7 @@
     "build": "vite build && npm run build:ssr && node scripts/prerender.mjs",
     "build:ssr": "vite build --ssr src/entry-server.jsx --outDir .vite-ssr",
     "lint": "eslint .",
+    "verify:dist": "node scripts/verify-dist.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

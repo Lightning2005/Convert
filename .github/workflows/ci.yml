@@ -1,0 +1,139 @@
+name: CI
+
+# Проверка на каждый push и PR: бэкенд (тесты Django + poppler), фронтенд
+# (eslint, сборка со статическими страницами) и сам Docker-образ.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 3.12 — та же версия, что в backend/Dockerfile: тесты на другой версии не
+      # доказывают, что прод работает.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      # pdf2image работает через бинарники poppler: без них тесты PDF падают не из-за кода.
+      - name: Install poppler-utils
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Django system check
+        working-directory: backend
+        run: python manage.py check
+
+      - name: Migrations are in sync with models
+        working-directory: backend
+        run: python manage.py makemigrations --check --noinput
+
+      - name: Test suite
+        working-directory: backend
+        env:
+          DJANGO_DEBUG: '1'
+        run: python manage.py test converter --verbosity 2
+
+      - name: No files left in the working tmp directory
+        working-directory: backend
+        # Тесты обязаны писать в свой каталог (TMP_FILES_DIR из overrides), иначе
+        # здесь остались файлы прошлых прогонов.
+        run: |
+          set -e
+          count=$(find tmp_files -type f 2>/dev/null | wc -l)
+          if [ "$count" -ne 0 ]; then
+            echo "В backend/tmp_files осталось файлов: $count"
+            ls -la tmp_files
+            exit 1
+          fi
+          echo "backend/tmp_files чист"
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
+      # VITE_SITE_URL включает те блоки, которые без него молча не выводятся:
+      # canonical, og:image, robots.txt и sitemap.xml.
+      - name: Build (prerender + sitemap)
+        working-directory: frontend
+        env:
+          VITE_SITE_URL: https://konvert.example.com
+        run: npm run build
+
+      - name: Verify static output
+        working-directory: frontend
+        run: npm run verify:dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 7
+
+  image:
+    name: Docker image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Отдельного шага на push нет: проверяем, что образ собирается и запускается
+      # как есть. Прод-таргет подключается в deploy.yml.
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: false
+          load: true
+          tags: konvert-backend:ci
+
+      - name: Image runs as a non-root user
+        run: |
+          set -e
+          user=$(docker run --rm --entrypoint id konvert-backend:ci -u)
+          echo "uid=$user"
+          if [ "$user" = "0" ]; then
+            echo "Контейнер запускается от root"
+            exit 1
+          fi
+
+      - name: Image passes Django checks
+        # Проверка внутри образа: импорт настроек, приложений и URL-конфига, плюс
+        # наличие gunicorn. Ловит случай, когда на хосте всё зелёное, а в образе
+        # не хватает системной библиотеки или изменился путь до кода.
+        run: |
+          set -e
+          docker run --rm --entrypoint python konvert-backend:ci manage.py check
+          docker run --rm --entrypoint sh konvert-backend:ci -c 'command -v gunicorn >/dev/null'

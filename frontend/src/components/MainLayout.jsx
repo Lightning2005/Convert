@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { SUPPORTED_TOOLS } from '../config/tools';
+import { ADS_ENABLED } from '../config/ads';
+import AdSlot from './AdSlot';
 import CookieNotice from './CookieNotice';
 import logoIcon from '../assets/logo.svg';
 
 const FLOOR_AD_KEY = 'floor-ad-dismissed';
-// Весь слой (креатив + кнопка) занимает 28% высоты экрана — РСЯ разрешает липкому блоку не более 30%
-const FLOOR_LAYER_HEIGHT = 'h-[28vh] max-h-[250px] min-h-[150px]';
 
 export default function MainLayout({ children }) {
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -41,7 +41,7 @@ export default function MainLayout({ children }) {
   // Статические страницы отдаются и по адресу с завершающим слешем (/privacy/),
   // поэтому путь нормализуем — иначе правила для рекламы и главная не узнаются
   const pathname = location.pathname.replace(/\/+$/, '') || '/';
-  const showAds = !hideAdsRoutes.includes(pathname);
+  const showAds = ADS_ENABLED && !hideAdsRoutes.includes(pathname);
   const isHomePage = pathname === '/';
   const showFloor = showAds && !floorDismissed;
 
@@ -140,7 +140,7 @@ export default function MainLayout({ children }) {
   const dropdownClassName = "absolute left-1/2 -translate-x-1/2 mt-3 w-[25rem] max-h-[70vh] overflow-y-auto grid grid-cols-2 gap-x-2 gap-y-0.5 bg-main rounded-xl border border-ui-border p-2 z-50 animate-fadeIn text-text-primary shadow-lg [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-ui-border [&::-webkit-scrollbar-thumb]:rounded-full";
 
   return (
-    <div className={`min-h-screen flex flex-col bg-surface-muted text-text-primary ${showFloor ? 'pb-[calc(28vh+1.5rem)] md:pb-0' : ''}`}>
+    <div className={`min-h-screen flex flex-col bg-surface-muted text-text-primary ${showFloor ? 'page-with-floor' : ''}`}>
 
       {/* ШАПКА */}
       <header className="w-full bg-main text-text-primary px-6 py-4 flex justify-between items-center border-b border-ui-border shrink-0 z-50">
@@ -249,13 +249,10 @@ export default function MainLayout({ children }) {
       {/* ОСНОВНОЙ КОНТЕНТЕР */}
       <div className="flex-1 w-full flex p-6 gap-6 justify-between items-start relative max-w-[1600px] mx-auto py-12">
         {showAds && (
-          <aside
-            role="complementary"
-            aria-label="Реклама"
-            className="hidden xl:flex w-[200px] h-[600px] bg-main border border-ui-border rounded-xl p-4 items-center justify-center text-center text-text-secondary shrink-0 sticky top-6 z-0"
-          >
-            Реклама <br /> 160×600
-          </aside>
+          <AdSlot
+            id="ad-rail-left"
+            className="hidden xl:flex w-[200px] h-[600px] bg-main border border-ui-border rounded-xl p-4 items-center justify-center text-text-secondary shrink-0 sticky top-6 z-0"
+          />
         )}
 
         <div className="flex-1 flex flex-col items-center gap-8 max-w-[1000px] mx-auto w-full">
@@ -268,31 +265,26 @@ export default function MainLayout({ children }) {
           </main>
 
           {showAds && (
-            <div
-              role="complementary"
-              aria-label="Реклама"
-              className="hidden md:flex w-full max-w-[1000px] h-[175px] bg-main border border-ui-border rounded-xl items-center justify-center text-center text-text-secondary shrink-0"
-            >
-              Рекламный блок 970×175
-            </div>
+            <AdSlot
+              id="ad-banner"
+              className="hidden md:flex w-full max-w-[1000px] h-[175px] bg-main border border-ui-border rounded-xl items-center justify-center text-text-secondary shrink-0"
+            />
           )}
         </div>
 
         {showAds && (
-          <aside
-            role="complementary"
-            aria-label="Реклама"
-            className="hidden xl:flex w-[200px] h-[600px] bg-main border border-ui-border rounded-xl p-4 items-center justify-center text-center text-text-secondary shrink-0 sticky top-6 z-0"
-          >
-            Реклама <br /> 160×600
-          </aside>
+          <AdSlot
+            id="ad-rail-right"
+            className="hidden xl:flex w-[200px] h-[600px] bg-main border border-ui-border rounded-xl p-4 items-center justify-center text-text-secondary shrink-0 sticky top-6 z-0"
+          />
         )}
       </div>
 
-      {/* ЛИПКИЙ МОБИЛЬНЫЙ РЕКЛАМНЫЙ БЛОК */}
+      {/* ЛИПКИЙ МОБИЛЬНЫЙ РЕКЛАМНЫЙ СЛОЙ. Показывает себя сам, когда внутри
+          появляется креатив: см. .floor-ad в index.css. */}
       {showFloor && (
         <div
-          className={`md:hidden fixed bottom-0 inset-x-0 z-40 flex flex-col items-center gap-1.5 px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] bg-surface-muted/95 backdrop-blur-sm border-t border-ui-border ${FLOOR_LAYER_HEIGHT}`}
+          className="floor-ad fixed bottom-0 inset-x-0 z-40 flex-col items-center gap-1.5 px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] bg-surface-muted/95 backdrop-blur-sm border-t border-ui-border"
         >
           <button
             type="button"
@@ -303,13 +295,10 @@ export default function MainLayout({ children }) {
             Закрыть рекламу ✕
           </button>
 
-          <div
-            role="complementary"
-            aria-label="Реклама"
-            className="w-full max-w-[420px] flex-1 min-h-0 bg-main border border-ui-border rounded-xl flex items-center justify-center text-center text-text-secondary text-sm"
-          >
-            Рекламный блок 320×100
-          </div>
+          <AdSlot
+            id="ad-floor"
+            className="w-full max-w-[420px] flex-1 min-h-0 bg-main border border-ui-border rounded-xl items-center justify-center text-text-secondary"
+          />
         </div>
       )}
 

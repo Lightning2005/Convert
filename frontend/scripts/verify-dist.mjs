@@ -103,6 +103,20 @@ for (const slug of Object.keys(SUPPORTED_TOOLS)) {
     `вопросов: ${faqCount}, шагов: ${stepCount}`);
 }
 
+// Места под рекламу появляются в разметке только вместе с id издателя: без
+// VITE_ADS_CLIENT на собранной странице не должно ни контейнеров, ни кнопки
+// «Закрыть рекламу» — фальшивую рекламу модератор читает как обещание показа.
+const adsConfigured = Boolean((process.env.VITE_ADS_CLIENT || '').trim());
+const pagesWithSlots = pages.filter(
+  (path) => read(`${path === '/' ? '' : path}/index.html`).includes('ad-slot')
+);
+
+check(
+  adsConfigured ? 'места под рекламу собраны' : 'без VITE_ADS_CLIENT рекламных мест нет',
+  adsConfigured ? pagesWithSlots.length > 0 : pagesWithSlots.length === 0,
+  `страниц с ad-slot: ${pagesWithSlots.length} из ${pages.length}`
+);
+
 const totalHtml = (function count(dir) {
   let sum = 0;
   for (const entry of readdirSync(dir)) {

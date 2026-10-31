@@ -178,6 +178,22 @@ export default function ConverterForm({ config, preloadedFiles }) {
 
   const isSortableEnabled = config.targetName?.toUpperCase() === 'PDF';
 
+  // config.steps — три шага инструмента: загрузка, обработка, результат. Строка
+  // про порядок файлов вставляется в середину только там, где список действительно
+  // перетаскивается (isSortableEnabled), поэтому в тексте шагов её нет.
+  const steps = config.steps
+    ? [
+        config.steps[0],
+        ...(isSortableEnabled ? ['Настройте нужный порядок файлов с помощью перетаскивания строк'] : []),
+        ...config.steps.slice(1),
+      ]
+    : [
+        'Перетащите файлы в зону выше или нажмите для выбора',
+        ...(isSortableEnabled ? ['Настройте нужный порядок файлов с помощью перетаскивания строк'] : []),
+        'Нажмите кнопку «Конвертировать»',
+        `Дождитесь завершения обработки и скачайте готовый ${config.targetName}`,
+      ];
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -530,12 +546,11 @@ export default function ConverterForm({ config, preloadedFiles }) {
 
       <div className="w-full max-w-2xl border-t border-ui-border pt-6">
         <h3 className="font-semibold text-lg mb-2 text-text-primary">Как это работает:</h3>
-        <ul className="list-disc pl-5 space-y-1 text-text-secondary text-sm">
-          <li>Перетащите файлы в зону выше или нажмите для выбора</li>
-          {isSortableEnabled && <li>Настройте нужный порядок файлов с помощью перетаскивания строк</li>}
-          <li>Нажмите кнопку «Конвертировать»</li>
-          <li>Дождитесь завершения обработки и скачайте готовый {config.targetName}</li>
-        </ul>
+        <ol className="list-decimal pl-5 space-y-1 text-text-secondary text-sm">
+          {steps.map((step, index) => (
+            <li key={index}>{step}</li>
+          ))}
+        </ol>
       </div>
 
       {/* Текстовый блок инструмента: чем он отличается от соседних, что произойдёт

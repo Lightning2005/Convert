@@ -101,7 +101,11 @@ def too_many_pixels_message(name, size):
 # Пока воркер не начал задачу, Celery отдаёт по её id состояние PENDING — точно
 # такое же, как по несуществующему id. Метка в кэше различает их: «ждёт своей
 # очереди» против «такой задачи мы никогда не принимали».
-QUEUED_MARK_TTL = 2 * 3600
+#
+# Метка живёт ровно столько, сколько файл и результат Celery: все три срока
+# считаются от одного TMP_FILE_TTL_SECONDS, чтобы статус не ссылался на
+# удалённый файл и не молчал о ещё живом.
+QUEUED_MARK_TTL = settings.TMP_FILE_TTL_SECONDS
 
 
 def mark_task_queued(task_id):
@@ -129,9 +133,17 @@ def task_snapshot(task_id):
         payload = result.result or {}
         if payload.get('status') == 'SUCCESS':
             filename = payload.get('result_file')
-            # Отдаём путь, а не absolute URI: адрес сборки ответа зависит от
-            # заголовка Host, а фронтенд сам знает, откуда он качает.
-            snapshot['download_url'] = reverse('file_download', kwargs={'filename': filename})
+            # Результат Celery и файл живут столько, сколько TTL, но очистка
+            # ходит раз в 5 минут: между удалением файла и истечением результата
+            # есть окно, в котором ссылка была бы уже битой.
+            if not filename or not os.path.isfile(os.path.join(tmp_dir(), filename)):
+                snapshot['status'] = 'FAILURE'
+                snapshot['error'] = ('Файл уже удалён с сервера: результаты хранятся не больше часа. '
+                                     'Отправьте его ещё раз.')
+            else:
+                # Отдаём путь, а не absolute URI: адрес сборки ответа зависит от
+                # заголовка Host, а фронтенд сам знает, откуда он качает.
+                snapshot['download_url'] = reverse('file_download', kwargs={'filename': filename})
         else:
             snapshot['status'] = 'FAILURE'
             snapshot['error'] = payload.get('error', 'Unknown error during conversion')

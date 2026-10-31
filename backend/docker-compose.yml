@@ -18,6 +18,12 @@ x-django-env: &django-env
   THROTTLE_POLL: ${THROTTLE_POLL:-}
   THROTTLE_DOWNLOAD: ${THROTTLE_DOWNLOAD:-}
   DJANGO_NUM_PROXIES: ${DJANGO_NUM_PROXIES:-}
+  # Каталог рабочих файлов. По умолчанию /app/tmp_files (общий том ниже); менять
+  # смысл есть, только когда том выносят на другой диск.
+  TMP_FILES_DIR: ${TMP_FILES_DIR:-}
+  # Срок жизни результата конвертации (файлов, результата Celery и метки
+  # «задача принята»). Пустое значение = default из settings.py.
+  TMP_FILE_TTL_SECONDS: ${TMP_FILE_TTL_SECONDS:-}
 
 services:
   redis:

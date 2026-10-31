@@ -226,6 +226,13 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
 # которые приложение никогда не создавало.
 TMP_FILES_DIR = os.environ.get('TMP_FILES_DIR') or str(BASE_DIR / 'tmp_files')
 
+# Сколько живёт готовый результат. Политика конфиденциальности обещает «не более
+# одного часа», а очистка ходит раз в 5 минут, значит потолок должен быть ниже
+# часа: при 60 минутах файл мог пережить обещание на целых 15. Этот же интервал
+# задаёт TTL результата Celery и метки «задача принята» — иначе статус ссылался
+# бы на файл, которого уже нет, или наоборот молчал о живом.
+TMP_FILE_TTL_SECONDS = int(os.environ.get('TMP_FILE_TTL_SECONDS') or 55 * 60)
+
 # ==============================================================================
 # СПЕЦИФИКА POPPLER (ДЛЯ PDF2IMAGE)
 # ==============================================================================
@@ -241,11 +248,15 @@ else:
 # отдельно: DJANGO_ENABLE_ADMIN=1.
 ENABLE_ADMIN = env_bool('DJANGO_ENABLE_ADMIN', DEBUG)
 
+CELERY_RESULT_EXPIRES = TMP_FILE_TTL_SECONDS
+
 from celery.schedules import crontab
 
 CELERY_BEAT_SCHEDULE = {
-    'clear-tmp-files-every-15-mins': {
-        'task': 'converter.tasks.clear_old_tmp_files_task',  # Укажи точный путь, если приложение называется иначе, например, 'api.tasks...'
-        'schedule': crontab(minute='*/15'),  # Каждые 15 минут
+    'clear-tmp-files-every-5-mins': {
+        'task': 'converter.tasks.clear_old_tmp_files_task',
+        # Раз в 5 минут: результат живёт TMP_FILE_TTL_SECONDS, и лишний цикл
+        # только приближает удаление к обещанному «не более часа».
+        'schedule': crontab(minute='*/5'),
     },
 }

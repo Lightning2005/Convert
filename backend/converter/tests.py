@@ -4,12 +4,14 @@ import os
 import re
 import struct
 import tempfile
+import time
 import uuid
 import zipfile
 import zlib
 from unittest.mock import Mock, PropertyMock, patch
 from urllib.parse import urlparse
 
+from celery.schedules import crontab
 from django.conf import settings
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -531,6 +533,19 @@ class TaskSystemAPITestCase(ConverterAPITestBase):
         self.assertTrue(status_response.data['download_url'].startswith('/api/download/'),
                         status_response.data['download_url'])
 
+    def test_status_of_a_purged_result_says_so(self):
+        """Пока результат Celery жив, а файл уже съеден очисткой, ссылка была бы битой."""
+        task_id = self.submit_conversion(file=self.make_upload('test.png', 'PNG'), target='jpg')
+        first = self.client.get(reverse('task_status', kwargs={'task_id': task_id}))
+        filename = first.data['download_url'].rstrip('/').rsplit('/', 1)[-1]
+        self.remove_quietly(os.path.join(tmp_dir(), filename))
+
+        response = self.client.get(reverse('task_status', kwargs={'task_id': task_id}))
+
+        self.assertEqual(response.data['status'], 'FAILURE', response.data)
+        self.assertNotIn('download_url', response.data)
+        self.assertIn('удалён', response.data['error'])
+
     def test_failure_message_hides_internal_paths(self):
         """Pillow пишет «cannot identify image file '/app/tmp_files/<uuid>.png'»."""
         broken = SimpleUploadedFile('broken.png', b'not an image at all', content_type='image/png')
@@ -740,6 +755,40 @@ class ThrottlingTestCase(ConverterAPITestBase):
 
     def test_num_proxies_defaults_to_zero(self):
         self.assertEqual(settings.REST_FRAMEWORK['NUM_PROXIES'], 0)
+
+
+@override_settings(**CELERY_TEST_SETTINGS)
+class TmpFileRetentionTestCase(ConverterAPITestBase):
+    """Срок жизни файла, результата и метки «задачи» считается из одного числа."""
+
+    def aged_file(self, name, age_seconds):
+        path = os.path.join(tmp_dir(), name)
+        with open(path, 'wb') as handle:
+            handle.write(b'x')
+        stamp = time.time() - age_seconds
+        os.utime(path, (stamp, stamp))
+        self.addCleanup(self.remove_quietly, path)
+        return path
+
+    def test_cleanup_removes_only_files_past_the_ttl(self):
+        from .tasks import clear_old_tmp_files_task
+
+        with override_settings(TMP_FILE_TTL_SECONDS=60):
+            old = self.aged_file(f'old_{uuid.uuid4().hex}.jpg', 61)
+            fresh = self.aged_file(f'fresh_{uuid.uuid4().hex}.jpg', 1)
+
+            clear_old_tmp_files_task.apply().get()
+
+        self.assertFalse(os.path.exists(old), 'файл старше TTL обязан удалиться')
+        self.assertTrue(os.path.exists(fresh), 'свежий файл удалять нельзя')
+
+    def test_ttl_stays_inside_the_hour_promise(self):
+        """Политика обещает «не более часа»: TTL плюс интервал очистки не должны его превышать."""
+        schedule = settings.CELERY_BEAT_SCHEDULE['clear-tmp-files-every-5-mins']['schedule']
+
+        self.assertEqual(schedule, crontab(minute='*/5'))
+        self.assertLessEqual(settings.TMP_FILE_TTL_SECONDS + 5 * 60, 3600)
+        self.assertEqual(settings.CELERY_RESULT_EXPIRES, settings.TMP_FILE_TTL_SECONDS)
 
 
 class DescribeFailureTestCase(SimpleTestCase):

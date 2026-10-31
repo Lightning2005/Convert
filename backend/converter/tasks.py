@@ -92,13 +92,13 @@ def generic_convert_task(self, input_path: str, output_filename: str, target_for
 
 @shared_task
 def clear_old_tmp_files_task():
-    """Периодическая задача для очистки файлов старше 1 часа."""
+    """Периодическая задача для очистки файлов старше TMP_FILE_TTL_SECONDS."""
     directory = tmp_dir()
     if not os.path.exists(directory):
         return "Directory does not exist"
 
     now = time.time()
-    cutoff = now - 3600  # 1 час назад
+    cutoff = now - settings.TMP_FILE_TTL_SECONDS
     deleted_count = 0
 
     for filename in os.listdir(directory):

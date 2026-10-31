@@ -4,6 +4,10 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
+# До слоя с зависимостями: pip ищет requirements.txt относительно рабочей
+# директории, а не того места, куда их положил COPY.
+WORKDIR /app
+
 # Устанавливаем системные зависимости (poppler-utils необходим для работы pdf2image на Linux)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     poppler-utils \
@@ -20,8 +24,6 @@ RUN pip install --no-cache-dir --upgrade pip \
 # reportlab становится записью в /app и в хост.
 RUN groupadd --system --gid 10001 app \
     && useradd --system --uid 10001 --gid app --home-dir /app --shell /usr/sbin/nologin app
-
-WORKDIR /app
 
 # Копируем исходный код сразу с владельцем app: иначе файлы, созданные на этапе
 # сборки, процесс без прав не перезапишет (collectstatic, sqlite).

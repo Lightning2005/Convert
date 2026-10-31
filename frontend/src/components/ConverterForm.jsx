@@ -546,7 +546,7 @@ export default function ConverterForm({ config, preloadedFiles }) {
 
       <div className="w-full max-w-2xl border-t border-ui-border pt-6">
         <h3 className="font-semibold text-lg mb-2 text-text-primary">Как это работает:</h3>
-        <ol className="list-decimal pl-5 space-y-1 text-text-secondary text-sm">
+        <ol className="list-decimal pl-5 space-y-1 text-text-secondary text-base">
           {steps.map((step, index) => (
             <li key={index}>{step}</li>
           ))}
@@ -561,7 +561,7 @@ export default function ConverterForm({ config, preloadedFiles }) {
           <h2 className="font-semibold text-lg mb-3 text-text-primary">
             Что нужно знать про {config.sourceName} и {config.targetName}
           </h2>
-          <div className="space-y-3 text-sm leading-relaxed text-text-secondary">
+          <div className="space-y-3 text-base leading-relaxed text-text-secondary">
             {config.about.map((paragraph, index) => (
               <p key={index}>{paragraph}</p>
             ))}
@@ -576,13 +576,13 @@ export default function ConverterForm({ config, preloadedFiles }) {
                 key={index}
                 className="group rounded-xl border border-ui-border bg-main"
               >
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3.5 text-sm font-semibold text-text-primary [&::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3.5 text-base font-semibold text-text-primary [&::-webkit-details-marker]:hidden">
                   <span>{item.q}</span>
                   <svg className="h-3 w-3 shrink-0 fill-current text-text-secondary transition-transform duration-200 group-open:rotate-180" viewBox="0 0 20 20" aria-hidden="true">
                     <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
                   </svg>
                 </summary>
-                <p className="px-4 pb-4 text-sm leading-relaxed text-text-secondary">{item.a}</p>
+                <p className="px-4 pb-4 text-base leading-relaxed text-text-secondary">{item.a}</p>
               </details>
             ))}
           </div>

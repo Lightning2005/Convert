@@ -81,6 +81,14 @@ for (const { path: route } of routes) {
 
 console.log(`Статических страниц собрано: ${written.length}`);
 
+// Страница для error_page отдающего сервера. Без неё у несуществующего адреса
+// либо заглушка nginx, либо шелл приложения с кодом 200 — «мягкий 404» пауком
+// читается как живой документ, а модератором как сломанный сайт.
+const notFoundPage = template
+  .replace(blockRe, headTags(getSeo('/404')))
+  .replace('<div id="root"></div>', `<div id="root">${renderRoute('/404')}</div>`);
+await writeFile(path.join(distDir, '404.html'), notFoundPage, 'utf8');
+
 const escapeXml = (value) =>
   String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 

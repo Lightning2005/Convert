@@ -127,12 +127,19 @@ const totalHtml = (function count(dir) {
   return sum;
 })(DIST);
 
-// У корня две формы совпадают (dist/index.html и dist/.html), поэтому на одну
-// страницу меньше, чем 2 на маршрут.
-const expectedHtml = pages.length * 2 - 1;
+// У корня две формы совпадают (dist/index.html и dist/.html), поэтому минус
+// одна страница, и плюс одна — служебный 404.html вне sitemap.
+const expectedHtml = pages.length * 2;
 
 check('страниц в dist ровно столько, сколько маршрутов', totalHtml === expectedHtml,
   `найдено ${totalHtml}, ожидалось ${expectedHtml}`);
+
+// error_page nginx'а указывает на этот файл: у отсутствующей страницы должен
+// быть текст без JavaScript и meta robots noindex.
+const notFound = existsSync(join(DIST, '404.html')) ? read('404.html') : '';
+check('404.html собрана и объясняет, что случилось',
+  notFound.includes('Страница не найдена') && /content="noindex,follow"/.test(notFound),
+  notFound ? 'нет текста или noindex' : 'файла нет');
 
 console.log(`\n${failures.length === 0 ? 'OK' : `Провалено: ${failures.length}`}`);
 process.exit(failures.length === 0 ? 0 : 1);

@@ -108,6 +108,18 @@ def mark_task_queued(task_id):
     cache.set(f'queued:{task_id}', 1, QUEUED_MARK_TTL)
 
 
+def enqueue_task(task, *args):
+    """Ставит задачу под заранее известным id и помечает её до отправки.
+
+    Метку «задача принята» нельзя писать после delay(): воркер стартует быстрее,
+    чем выполняется следующая строка кода, и клиент, успевший опросить статус в
+    этом зазоре, получал UNKNOWN на принятый файл.
+    """
+    task_id = uuid.uuid4().hex
+    mark_task_queued(task_id)
+    return task.apply_async(args=args, task_id=task_id)
+
+
 def task_snapshot(task_id):
     """Состояние задачи в том виде, в котором его читает фронтенд."""
     result = AsyncResult(task_id)
@@ -172,8 +184,7 @@ class ImagesToPdfView(APIView):
 
         output_filename = f"converted_images_{uuid.uuid4()}.pdf"
 
-        task = images_to_pdf_task.delay(saved_paths, output_filename)
-        mark_task_queued(task.id)
+        task = enqueue_task(images_to_pdf_task, saved_paths, output_filename)
 
         return Response({
             "message": "Изображения приняты в обработку.",
@@ -204,8 +215,7 @@ class PdfToImagesView(APIView):
         pdf_path = save_uploaded_file(uploaded_pdf)
         output_filename = f"converted_pages_{uuid.uuid4()}.zip"
 
-        task = pdf_to_images_task.delay(pdf_path, output_filename, target_format)
-        mark_task_queued(task.id)
+        task = enqueue_task(pdf_to_images_task, pdf_path, output_filename, target_format)
 
         return Response({
             "message": "PDF принят в обработку.",
@@ -246,8 +256,7 @@ class GenericConvertView(APIView):
 
         output_filename = f"converted_file_{uuid.uuid4()}.{target_format}"
 
-        task = generic_convert_task.delay(input_path, output_filename, target_format)
-        mark_task_queued(task.id)
+        task = enqueue_task(generic_convert_task, input_path, output_filename, target_format)
 
         return Response({
             "message": "Файл принят в обработку.",

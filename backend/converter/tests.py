@@ -7,7 +7,7 @@ import tempfile
 import uuid
 import zipfile
 import zlib
-from unittest.mock import PropertyMock, patch
+from unittest.mock import Mock, PropertyMock, patch
 from urllib.parse import urlparse
 
 from django.conf import settings
@@ -228,7 +228,7 @@ class ImagesToPdfAPITestCase(ConverterAPITestBase):
             ]
         }
 
-        with patch('converter.tasks.images_to_pdf_task.delay') as mock_delay:
+        with patch('converter.tasks.images_to_pdf_task.apply_async') as mock_delay:
             response = self.client.post(url, data, format='multipart')
 
         self.assertEqual(response.status_code, 400)
@@ -465,7 +465,7 @@ class GenericConvertAPITestCase(ConverterAPITestBase):
     def test_giant_image_rejected_before_queueing(self):
         giant = SimpleUploadedFile('giant.png', fake_huge_png(), content_type='image/png')
 
-        with patch('converter.tasks.generic_convert_task.delay') as mock_delay:
+        with patch('converter.tasks.generic_convert_task.apply_async') as mock_delay:
             response = self.client.post(self.url, {'file': giant, 'target': 'png'}, format='multipart')
 
         self.assertEqual(response.status_code, 400)
@@ -578,6 +578,34 @@ class TaskSystemAPITestCase(ConverterAPITestBase):
         response = self.client.get(reverse('task_status', kwargs={'task_id': 'still-in-queue'}))
 
         self.assertEqual(response.data['status'], 'PENDING')
+
+    def test_queue_mark_is_written_before_the_task_is_sent(self):
+        """Зазор между отправкой в очередь и меткой — это UNKNOWN на принятый файл."""
+        from . import views
+
+        calls = []
+        real_mark = views.mark_task_queued
+
+        def mark(task_id):
+            calls.append('mark')
+            real_mark(task_id)
+
+        def apply_async(*args, **kwargs):
+            calls.append('enqueue')
+            self.assertTrue(cache.get(f'queued:{kwargs["task_id"]}'),
+                            'к моменту отправки задачи её метки ещё нет в кэше')
+            return Mock(id=kwargs['task_id'])
+
+        with patch('converter.views.mark_task_queued', side_effect=mark), \
+                patch.object(views.generic_convert_task, 'apply_async', side_effect=apply_async):
+            response = self.client.post(
+                reverse('generic_convert'),
+                {'file': self.make_upload('test.png', 'PNG'), 'target': 'jpg'},
+                format='multipart',
+            )
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(calls, ['mark', 'enqueue'])
 
     def test_batch_status_returns_snapshot_per_id(self):
         done_id = self.submit_conversion(file=self.make_upload('test.png', 'PNG'), target='jpg')

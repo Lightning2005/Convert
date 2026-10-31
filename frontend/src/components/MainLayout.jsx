@@ -315,7 +315,9 @@ export default function MainLayout({ children }) {
 
       {/* ПОДВАЛ */}
       <footer className="w-full text-center text-xs text-text-secondary py-6 mt-auto border-t border-ui-border bg-main/50 backdrop-blur-sm flex flex-col sm:flex-row justify-center items-center gap-4 sm:gap-8 shrink-0">
-        <div>
+        {/* Год попадает в prerender-HTML на момент сборки: до первого релиза в
+            новом году статичная страница и клиент расходятся на одну цифру. */}
+        <div suppressHydrationWarning={true}>
           &copy; {new Date().getFullYear()} Конверт. Все права защищены.
         </div>
         <div className="flex gap-4 font-medium">

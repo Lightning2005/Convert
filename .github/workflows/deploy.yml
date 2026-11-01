@@ -21,12 +21,25 @@
 #                     под креативы. Оба рекламных секрета относятся в кабинет
 #                     после одобрения площадки, до него их не заполняют.
 #
-# Сервер должен уметь docker compose: выкатка поднимает backend/docker-compose.prod.yml.
+# Сервер: Ubuntu 22.04/24.04, 2 vCPU / 2 ГБ RAM (gunicorn в 3 воркера + Celery
+# + redis + nginx; одна картинка в распакованном виде занимает до 50 Мп ≈ 200 МБ,
+# на 1 ГБ батч уходит в OOM-kill) и 40+ ГБ под tmp_files.
+#
+# Пакеты, без которых выкатка не работает:
+#   docker.io + docker-compose-plugin  — поднимает backend/docker-compose.prod.yml
+#   rsync                              — этим workflow кладёт dist в WEB_ROOT
+#   curl                               — этим deploy.sh проверяет живость API
+#   git                                — deploy.sh делает fetch/ff-only на сервере
+#   nginx + certbot                    — раздача статики и /api/ (deploy/nginx.conf)
 #
 # Первая настройка сервера (делается один раз, руками):
+#   0.поставить пакеты из списка выше и сделать swap на 2 ГБ — без него воркер
+#     Celery на больших батчах упирается в OOM-kill
 #   1.клонировать репозиторий в REPO_PATH (по умолчанию /var/www/convert)
 #   2.создать backend/.env с DJANGO_SECRET_KEY и DJANGO_ALLOWED_HOSTS=<домен>;
-#     файл в .gitignore, поэтому deploy.sh не считает его грязным деревом
+#     локальные хосты (127.0.0.1, localhost, web) разрешены автоматически, их
+#     дописывать не нужно. Файл в .gitignore, поэтому deploy.sh не считает его
+#     грязным деревом
 #   3.положить deploy/nginx.conf в /etc/nginx/conf.d/convert.conf, подставив домен
 #     вместо konvert.example.com, затем nginx -t и reload
 #   4.`mkdir -p <WEB_ROOT>` под фронтенд и выпустить сертификат:

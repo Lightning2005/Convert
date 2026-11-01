@@ -68,6 +68,11 @@ jobs:
   frontend:
     name: Frontend build
     runs-on: ubuntu-latest
+    # Уровень job, а не шага: verify:dist читает VITE_SITE_URL так же, как сборка
+    # (canonical, og:image, robots.txt и sitemap без неё не генерируются), и падает
+    # без неё. Переменная на одном шаге оставляла следующий шаг без адреса.
+    env:
+      VITE_SITE_URL: https://konvert.example.com
     steps:
       - uses: actions/checkout@v4
 
@@ -85,12 +90,8 @@ jobs:
         working-directory: frontend
         run: npm run lint
 
-      # VITE_SITE_URL включает те блоки, которые без него молча не выводятся:
-      # canonical, og:image, robots.txt и sitemap.xml.
       - name: Build (prerender + sitemap)
         working-directory: frontend
-        env:
-          VITE_SITE_URL: https://konvert.example.com
         run: npm run build
 
       - name: Verify static output

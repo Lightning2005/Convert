@@ -14,6 +14,9 @@ webp, упаковка в zip и другие. Файл загружается �
 - **deploy/nginx.conf** — раздача собранного фронтенда и прокси на бэкенд.
 - **.github/workflows/** — `ci.yml` на каждый push/PR, `deploy.yml` с ручным запуском.
 
+Контракты между слоями, карта модулей и чеклист «как добавить инструмент» —
+в [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Локальный запуск
 
 Нужны Docker (с запущенным Docker Desktop) и Node 22+.

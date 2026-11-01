@@ -54,9 +54,12 @@ if not DEBUG and SECRET_KEY == DEV_SECRET_KEY:
     raise ImproperlyConfigured('Задайте DJANGO_SECRET_KEY — девелперский ключ нельзя использовать в продакшене.')
 
 # Локальные хосты разрешены всегда: к dev-серверу обращаются по 127.0.0.1 и по
-# имени сервиса из docker-compose. Реальный домен добавляется через
-# DJANGO_ALLOWED_HOSTS.
-ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', ['localhost', '127.0.0.1', '[::1]', '0.0.0.0', 'web'])
+# имени сервиса из docker-compose, а backend/deploy.sh проверяет живость запросом
+# на http://127.0.0.1:8000. Поэтому реальный домен из DJANGO_ALLOWED_HOSTS
+# дополняет список, а не заменяет его: с заменой та же проверка выкатки получала
+# 400 DisallowedHost и deploy.sh падал, хотя сайт снаружи работал исправно.
+LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]', '0.0.0.0', 'web']
+ALLOWED_HOSTS = LOCAL_HOSTS + [host for host in env_list('DJANGO_ALLOWED_HOSTS') if host not in LOCAL_HOSTS]
 
 
 # Application definition

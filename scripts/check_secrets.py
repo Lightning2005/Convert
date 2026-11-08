@@ -7,6 +7,10 @@
 
     python scripts/check_secrets.py --all
     python scripts/check_secrets.py --staged
+
+Хук включается один раз на клон:
+
+    git config core.hooksPath .githooks
 """
 
 import argparse

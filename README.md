@@ -54,18 +54,16 @@ VITE_SITE_URL=https://example.ru npm run build
 VITE_SITE_URL=https://example.ru npm run verify:dist   # состав dist, canonical, отсутствие рекламы
 ```
 
-### Проверка на попавшие в репозиторий доступы
+### Доступы в репозитории
 
-Один раз на клон: `git config core.hooksPath .githooks`. После этого перед каждым
-коммитом `scripts/check_secrets.py --staged` смотрит добавленные строки на
-присваивания с ключами password, secret, token, api_key и реальным значением справа,
-на `login:password@host` в URL, пары «логин аккаунта хостинга через двоеточие и
-пароль» и файлы, под которыми доступы уже лежали (`ftp.txt`, `ftp.cfg`, `*.netrc`,
-`.env`, ключи `id_*`, `*.pem`). В отчёте значения маскируются —
-виден только файл, номер строки и длина. Плейсхолдеры (`${{ secrets.X }}`,
-`os.environ.get(...)`, `changeme`, `django-insecure-…`) не трогаем. Тот же скрипт
-отдельным джобом проходит по всем отслеживаемым файлам в CI, так что
-`git commit --no-verify` от падения не спасёт.
+`scripts/check_secrets.py` — гейт на пароли и ключи: ловит присваивания вида
+`password = …` с реальным значением, `login:password@host` в URL и файлы, под
+которыми доступы к хостингу уже лежали (`ftp.cfg`, `*.netrc`, `.env`, `*.pem`).
+Значения в отчёте маскируются. Работает на двух уровнях: git-хук
+`.githooks/pre-commit` на добавленные в коммит строки и отдельный джоб CI по всем
+отслеживаемым файлам, поэтому `git commit --no-verify` от падения не спасает.
+Плейсхолдеры (`${{ secrets.X }}`, `os.environ.get(...)`, `django-insecure-…`) не
+трогает.
 
 ## Переменные окружения
 

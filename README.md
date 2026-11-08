@@ -54,6 +54,19 @@ VITE_SITE_URL=https://example.ru npm run build
 VITE_SITE_URL=https://example.ru npm run verify:dist   # состав dist, canonical, отсутствие рекламы
 ```
 
+### Проверка на попавшие в репозиторий доступы
+
+Один раз на клон: `git config core.hooksPath .githooks`. После этого перед каждым
+коммитом `scripts/check_secrets.py --staged` смотрит добавленные строки на
+присваивания с ключами password, secret, token, api_key и реальным значением справа,
+на `login:password@host` в URL, пары «логин аккаунта хостинга через двоеточие и
+пароль» и файлы, под которыми доступы уже лежали (`ftp.txt`, `ftp.cfg`, `*.netrc`,
+`.env`, ключи `id_*`, `*.pem`). В отчёте значения маскируются —
+виден только файл, номер строки и длина. Плейсхолдеры (`${{ secrets.X }}`,
+`os.environ.get(...)`, `changeme`, `django-insecure-…`) не трогаем. Тот же скрипт
+отдельным джобом проходит по всем отслеживаемым файлам в CI, так что
+`git commit --no-verify` от падения не спасёт.
+
 ## Переменные окружения
 
 Полные комментарии — в `backend/.env.example` и `frontend/.env.example`.

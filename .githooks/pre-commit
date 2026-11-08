@@ -1,0 +1,19 @@
+#!/bin/sh
+# Проверка staged-строк на похожие на доступы значения.
+# Включается одной командой: git config core.hooksPath .githooks
+# Обход: git commit --no-verify (в CI это всё равно не пройдёт).
+set -e
+
+if command -v python >/dev/null 2>&1; then
+    PY=python
+elif command -v python3 >/dev/null 2>&1; then
+    PY=python3
+elif command -v py >/dev/null 2>&1; then
+    PY="py -3"
+else
+    echo "pre-commit: не найден python, проверку доступов пропускаем" >&2
+    exit 0
+fi
+
+# shellcheck disable=SC2086
+$PY scripts/check_secrets.py --staged

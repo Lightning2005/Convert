@@ -15,6 +15,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  secrets:
+    name: No credentials in the repo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Тот же скрипт, что и в .githooks/pre-commit, но по всем отслеживаемым
+      # файлам: --no-verify обходит хук, а CI — нет.
+      - name: Scan tracked files for access data
+        run: python scripts/check_secrets.py --all
+
   backend:
     name: Backend tests
     runs-on: ubuntu-latest

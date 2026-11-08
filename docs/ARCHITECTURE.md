@@ -2,8 +2,9 @@
 
 Документ для того, кто правит код. Он отвечает на три вопроса: как запрос проходит
 сквозь систему, какие контракты между слоями нельзя нарушать и куда идти, чтобы
-добавить инструмент. Про устройство проекта — [README.md](../README.md), фактические
-команды запуска и проверок — в `.github/workflows/ci.yml`.
+добавить инструмент. Про устройство проекта — [README.md](../README.md), команды проверок
+и сборки — в `.github/workflows/ci.yml`, профиль локальной разработки —
+`backend/docker-compose.yml` (примечания к нему в шапке файла).
 
 ## 1. Контур одного запроса
 
@@ -41,7 +42,7 @@ backend, база 0) и метка «задача принята» в redis же
 | `converter/services.py` | тонкая прослойка «задача → стратегия», держит сигнатуры стабильными |
 | `converter/errors.py` | превращает исключение библиотеки в понятную фразу без путей |
 | `converter/exceptions.py` | 429 DRF приходит с `detail`, фронтенд читает `error` — правим здесь |
-| `converter/checks.py` | `manage.py check` падает, если `tmp_files` недоступен на запись (`converter.E001`) |
+| `converter/checks.py` | системная проверка Django: если `tmp_files` недоступен на запись, старт падает с `converter.E001` |
 
 ### 2.1 Контракт Celery-задачи
 
@@ -200,7 +201,8 @@ Windows даёт `PermissionError`, а не `IsADirectoryError`, и честна
 
 ### 4.3 Prerender-пайплайн
 
-`npm run build` = `vite build` → `vite build --ssr` → `node scripts/prerender.mjs`.
+Сборка страниц — конвейер из трёх шагов: обычный `vite build`, затем SSR-сборка,
+затем `scripts/prerender.mjs`.
 Для каждого маршрута из `getSitemapEntries()` скрипт подставляет head-теги в
 `dist/index.html` (блок `<!-- seo:start -->`) и кладёт разметку в `<div id="root">`.
 
@@ -212,7 +214,8 @@ Vercel, S3 и ветка `$uri.html`). Плюс `dist/404.html` с `noindex,foll
 Отсюда два правила. **Никакого SPA-fallback:** несуществующий адрес обязан давать 404,
 а не оболочку приложения с кодом 200 — мягкие 404 индексируются и читаются модератором
 как сломанный сайт. **`VITE_SITE_URL` обязателен при сборке:** без него canonical,
-og:image, robots и sitemap намеренно не генерируются, и `verify:dist` на этом падает.
+og:image, robots и sitemap намеренно не генерируются, и проверка состава dist на этом
+падает.
 
 ## 5. Как добавить инструмент
 
@@ -225,14 +228,15 @@ og:image, robots и sitemap намеренно не генерируются, и
    `SUPPORTED_IMAGE_EXTENSIONS` для исходников.
 4. Если формат тяжёлый — вспомнить про `MAX_IMAGE_PIXELS` и `PAGE_CHUNK`.
 5. Тест в `converter/tests.py` на успех и на отказ формата.
-6. `VITE_SITE_URL=… npm run build && npm run verify:dist` — `verify:dist` сверяет
-   число страниц с числом маршрутов, поэтому несогласованность видна сразу.
+6. Пересобрать dist и прогнать проверку состава — она сверяет число страниц с числом
+   маршрутов, поэтому несогласованность видна сразу. Команды сборки — в `ci.yml`.
 
 ## 6. Тесты
 
-`python manage.py test converter` — 64 теста, redis не нужен: `tests.py:59-66`
+Тесты живут в `converter/tests.py`, их 64, redis для прогона не нужен: `tests.py:59-66`
 включает `CELERY_TASK_ALWAYS_EAGER`, LocMemCache и отдельный каталог через
-`override_settings(TMP_FILES_DIR=…)`. Обязательное следствие: после прогона в
+`override_settings(TMP_FILES_DIR=…)`. Прогон зашит в `ci.yml` и выполняется на каждый
+push. Обязательное следствие: после прогона в
 `backend/tmp_files` не должно оставаться файлов — это отдельный шаг CI (`ci.yml:54-66`).
 На Windows для PDF-тестов нужен `POPPLER_PATH` (в `settings.py` есть дефолт под эту
 машину), в Docker и CI poppler ставится пакетом.

@@ -17,53 +17,19 @@ webp, упаковка в zip и другие. Файл загружается �
 Контракты между слоями, карта модулей и чеклист «как добавить инструмент» —
 в [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## Локальный запуск
+Команды сборки и проверок зашиты в `.github/workflows/ci.yml`: CI прогоняет ровно их,
+поэтому локальный прогон и прогон на GitHub не расходятся.
 
-Нужны Docker (с запущенным Docker Desktop) и Node 22+.
-
-```bash
-# 1. Бэкенд: web + celery worker + beat + redis
-cp backend/.env.example backend/.env
-docker compose -f backend/docker-compose.yml up -d --build
-# API поднимется на http://127.0.0.1:8000, миграции применяются при старте
-
-# 2. Фронтенд
-cd frontend
-npm ci
-npm run dev
-```
-
-Во время разработки запросы на `/api` проксирует Vite, отдельной настройки CORS не нужно.
-
-Без Docker бэкенд поднимается так же, но тогда для PDF-тестов и poppler-вызовов нужен путь
-к бинарникам: `POPPLER_PATH` в `backend/.env` (в образе `poppler-utils` уже стоит).
-
-## Проверки
-
-То же самое выполняет CI, так что падение здесь означает падение и на GitHub.
-
-```bash
-# backend
-python manage.py check
-python manage.py makemigrations --check --noinput
-python manage.py test converter          # redis для тестов не нужен: включён ALWAYS_EAGER + LocMemCache
-
-# frontend — обязательно с VITE_SITE_URL, иначе canonical/sitemap не генерируются
-VITE_SITE_URL=https://example.ru npm run lint
-VITE_SITE_URL=https://example.ru npm run build
-VITE_SITE_URL=https://example.ru npm run verify:dist   # состав dist, canonical, отсутствие рекламы
-```
-
-### Доступы в репозитории
+## Доступы в репозитории
 
 `scripts/check_secrets.py` — гейт на пароли и ключи: ловит присваивания вида
 `password = …` с реальным значением, `login:password@host` в URL и файлы, под
 которыми доступы к хостингу уже лежали (`ftp.cfg`, `*.netrc`, `.env`, `*.pem`).
 Значения в отчёте маскируются. Работает на двух уровнях: git-хук
 `.githooks/pre-commit` на добавленные в коммит строки и отдельный джоб CI по всем
-отслеживаемым файлам, поэтому `git commit --no-verify` от падения не спасает.
-Плейсхолдеры (`${{ secrets.X }}`, `os.environ.get(...)`, `django-insecure-…`) не
-трогает.
+отслеживаемым файлам, поэтому обход хука от падения не спасает. Плейсхолдеры
+(`${{ secrets.X }}`, `os.environ.get(...)`, `django-insecure-…`) не трогает. Хук
+включается одной командой на клон, она в докстринге `scripts/check_secrets.py`.
 
 ## Переменные окружения
 
@@ -94,33 +60,11 @@ multipart-обвязку, чтобы отказ приходил от Django с 
 redis (256 МБ лимит). Порт проброшен только на `127.0.0.1:8000`, то есть снаружи Django
 доступен лишь через nginx.
 
-```bash
-# на сервере, после клона репозитория и настройки .env
-REPO_PATH=/var/www/convert bash backend/deploy.sh
-```
-
-Скрипт делает `git fetch` + `merge --ff-only`, пересобирает образы и проверяет, что API
-отвечает на `/api/status/deploy-check/`. На грязном рабочем дереве он падает, а не чинит
-его молча. Фронтенд скрипт не трогает.
-
-Фронтенд выкладывает GitHub Actions: workflow **Deploy** (`workflow_dispatch`, то есть
-только руками) собирает dist и rsync'ит его в `WEB_ROOT` с `--delete`, после чего
-перезапускает бэкенд и прогоняет smoke-тест.
-
-Секреты для workflow:
-
-| Secret | Значение |
-|---|---|
-| `DEPLOY_HOST` | адрес сервера |
-| `DEPLOY_USER` | пользователь SSH |
-| `DEPLOY_SSH_KEY` | приватный ключ (публичный — в `authorized_keys`) |
-| `DEPLOY_KNOWN_HOSTS` | вывод `ssh-keyscan -t ed25519 <хост>`, без него шаг виснет |
-| `REPO_PATH` | `/var/www/convert` |
-| `WEB_ROOT` | `/var/www/convert/dist` — обязан совпадать с `root` в nginx.conf |
-| `VITE_SITE_URL` | `https://домен` без завершающего слеша |
-
-Одноразовая настройка сервера (пакеты, swap, пользователь, клон, `.env`, nginx, certbot)
-описана в шапках `.github/workflows/deploy.yml` и `deploy/nginx.conf`.
+Выкладка — `backend/deploy.sh` (бэкенд: подтягивает main, пересобирает образы и проверяет,
+что API отвечает) и workflow **Deploy** (фронтенд: собирает dist и отдаёт его в `WEB_ROOT`,
+перезапускает бэкенд, прогоняет smoke-тест). Оба запускаются только руками, автодеплоя нет.
+Какие secrets и пакеты нужны серверу и что делать при первой настройке — в шапке
+`.github/workflows/deploy.yml`.
 
 ## Почему на сайте не видно рекламы
 

@@ -35,3 +35,10 @@ frontend/yarn-error.log*
 .DS_Store
 Thumbs.db
 **/celerybeat-schedule*
+
+# Landing: доступы к хостингу и превью — не для репозитория
+landing/ftp.cfg
+landing/creds.netrc
+landing/curl-ftp.cfg
+landing/preview-*.png
+landing/backup-*.html

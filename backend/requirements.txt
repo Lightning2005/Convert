@@ -1,5 +1,6 @@
 asgiref==3.11.1
-celery==5.6.3
+# kombu>=5.7 прячет packaging в extra[redis], а kombu.transport.redis его импортирует
+celery[redis]==5.6.3
 charset-normalizer==3.4.7
 Django==6.0.6
 django-cors-headers==4.9.0

@@ -20,6 +20,10 @@ backend/tmp_files/
 backend/.env
 
 # Node / React (Frontend)
+# /var/www/convert/dist на сервере: сюда deploy.yml кладёт rsync-ом собранный
+# фронтенд (WEB_ROOT). Без этой строки deploy.sh считает рабочее дерево грязным
+# и отказывается выкатывать.
+/dist/
 frontend/node_modules/
 frontend/dist/
 frontend/.env

@@ -9,6 +9,13 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from pdf2image import convert_from_path, pdfinfo_from_path
 from pillow_heif import register_heif_opener
+from reportlab import rl_config
+
+# ASCII85-обёртка поверх Flate прирастает к потоку на ~25% и живёт в памяти до
+# записи на диск: на Linux (VmHWM, docker-образ прод-стека) пик 50-мегапиксель
+# картинки 1,59 ГиБ против 0,77 ГиБ без A85, на 24 Мп — 1,09 против 0,39.
+# На машине 1 vCPU / 2 ГБ с тремя воркерами gunicorn это половина всей RAM.
+rl_config.useA85 = 0
 
 # Регистрация плагина для поддержки HEIC
 register_heif_opener()

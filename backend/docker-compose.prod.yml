@@ -43,11 +43,16 @@ services:
     container_name: konvert_web_prod
     # Миграции и collectstatic перед стартом: образ неизменяем, поэтому статику
     # админки нужно собрать в том при подъёме контейнера.
-    command: >
-      sh -c "python manage.py migrate --noinput &&
-             python manage.py collectstatic --noinput &&
-             gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120
-             --access-logfile - --error-logfile -"
+    # Все строки идут с одним отступом: в folded-скаляре (`>`) перенос строки
+    # сохраняется, если следующая строка отбита глубже первой. При прежнем
+    # «красивом» выравнивании gunicorn обрывался на --timeout 120, а
+    # `--access-logfile -` Docker передавал в sh отдельной командой, и контейнер
+    # умирал с кодом 127.
+    command: >-
+      sh -c "python manage.py migrate --noinput
+      && python manage.py collectstatic --noinput
+      && gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120
+      --access-logfile - --error-logfile -"
     ports:
       - "127.0.0.1:8000:8000"
     volumes:

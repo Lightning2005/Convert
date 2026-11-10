@@ -42,11 +42,20 @@ docker compose -f "$COMPOSE_FILE" up -d --build
 # Миграции применяются внутри контейнера web (см. его command); ждём, пока он
 # поднимется, и проверяем, что API отвечает. /api/status/<id>/ — самый дешёвый
 # признак живости: он трогает и Django, и redis (result backend), и отдаёт 200
-# на любом id.
-sleep 8
+# на любом id. Фиксированный sleep проигрывал гонку: контейнер «Started», но
+# migrate+collectstatic ещё идут и воркеры поднимаются через 10–20 секунд,
+# поэтому опрашиваем циклом до 60 секунд.
 docker compose -f "$COMPOSE_FILE" ps
-if ! curl -fsS http://127.0.0.1:8000/api/status/deploy-check/ >/dev/null 2>&1; then
-  echo "API не отвечает на /api/status/deploy-check/ — последние строки логов web:"
+api_ok=0
+for _ in $(seq 1 30); do
+  if curl -fsS http://127.0.0.1:8000/api/status/deploy-check/ >/dev/null 2>&1; then
+    api_ok=1
+    break
+  fi
+  sleep 2
+done
+if [ "$api_ok" -ne 1 ]; then
+  echo "API не отвечает на /api/status/deploy-check/ за 60 с — последние строки логов web:"
   docker compose -f "$COMPOSE_FILE" logs --tail 40 web
   exit 1
 fi

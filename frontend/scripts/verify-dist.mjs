@@ -156,5 +156,69 @@ check('404.html собрана и объясняет, что случилось'
   notFound.includes('Страница не найдена') && /content="noindex,follow"/.test(notFound),
   notFound ? 'нет текста или noindex' : 'файла нет');
 
+// JSON-LD. Робот читает его без JavaScript, поэтому важны два факта: блок
+// парсится (битый JSON поисковик молча выбрасывает, и сборка об этом не
+// узнает) и его текст совпадает с тем, что человек видит на странице.
+// Разметка про вопросы, которых на странице нет, для Google и Яндекса — спам,
+// и rich result за неё не показывается, а не показывается вместо этого всё.
+// Сравниваем именно с HTML, а не с getStructuredData: проверка, построенная
+// на тех же данных, что и генератор, ничего не ловит.
+// Сравнивать надо с тем, что осталось от страницы после удаления блоков
+// разметки: вопрос из JSON-LD всегда присутствует в этом же JSON-LD, и проверка
+// по всему HTML прошла бы даже на странице, где видимого вопроса нет — это
+// поймано на подмене текста вопроса в собранной странице.
+const withoutLd = (html) => html.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/g, '');
+
+function ldBlocks(html) {
+  return [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
+    .map(([, body]) => {
+      try {
+        return JSON.parse(body);
+      } catch {
+        return null;
+      }
+    });
+}
+
+const byType = (blocks, type) => blocks.find((block) => block && block['@type'] === type);
+const matchesVisible = (html, entity) => {
+  const visible = withoutLd(html);
+  return entity.every(({ name, acceptedAnswer }) => visible.includes(name) && visible.includes(acceptedAnswer.text));
+};
+
+const homeLd = ldBlocks(homeHtml);
+check('JSON-LD главной парсится', homeLd.length === 1 && homeLd[0] !== null,
+  `блоков: ${homeLd.length}`);
+
+const homeFaq = byType(homeLd, 'FAQPage');
+check('FAQ главной в разметке совпадает с видимым текстом',
+  Boolean(homeFaq) && matchesVisible(homeHtml, homeFaq.mainEntity),
+  homeFaq ? `вопросов в разметке: ${homeFaq.mainEntity.length}` : 'блока FAQPage нет');
+
+const ldProblems = [];
+for (const slug of Object.keys(SUPPORTED_TOOLS)) {
+  const html = read(`tool/${slug}/index.html`);
+  const blocks = ldBlocks(html);
+  const faq = byType(blocks, 'FAQPage');
+  const crumb = byType(blocks, 'BreadcrumbList');
+  // Видимых вопросов на странице инструмента ровно столько, сколько <details>
+  const visible = (withoutLd(html).match(/<details/g) || []).length;
+  const ok =
+    blocks.length === 2 &&
+    blocks.every(Boolean) &&
+    faq && crumb &&
+    faq.mainEntity.length === visible &&
+    matchesVisible(html, faq.mainEntity) &&
+    crumb.itemListElement.length === 2 &&
+    crumb.itemListElement.every((item, i) => /^https:\/\//.test(item.item) && (i === 0 || withoutLd(html).includes(item.name)));
+  if (!ok) ldProblems.push(`${slug} (блоков: ${blocks.length}, вопросов: ${faq ? faq.mainEntity.length : 0}, видимых: ${visible})`);
+}
+check('JSON-LD страниц инструментов парсится и совпадает с видимым текстом',
+  ldProblems.length === 0, ldProblems.join('; '));
+
+check('у служебных страниц лишнего JSON-LD нет',
+  ['/privacy', '/contacts'].every((path) => ldBlocks(read(`${path}/index.html`)).length === 0) &&
+    !notFound.includes('application/ld+json'));
+
 console.log(`\n${failures.length === 0 ? 'OK' : `Провалено: ${failures.length}`}`);
 process.exit(failures.length === 0 ? 0 : 1);

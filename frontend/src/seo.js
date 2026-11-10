@@ -1,4 +1,5 @@
 import { SUPPORTED_TOOLS, MAX_FILE_SIZE_MB } from './config/tools.js';
+import { HOME_FAQ } from './config/faq.js';
 
 export const SITE_NAME = 'Конверт';
 
@@ -82,6 +83,54 @@ export function getSeo(pathname) {
 export function absoluteUrl(path) {
   if (!SITE_URL) return '';
   return `${SITE_URL}${path === '/' ? '/' : path}`;
+}
+
+// Разметка для поисковиков строится из тех же данных, что рисуют страницы:
+// список вопросов — из config/faq.js и config/tools.js, хлебные крошки — из
+// sourceName/targetName. Поисковик показывает rich result только если разметка
+// совпадает с видимым текстом, а расхождение здесь появилось бы само, при
+// правке любого лимита или названия формата.
+const faqPage = (items) => ({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: items.map(({ q, a }) => ({
+    '@type': 'Question',
+    name: q,
+    acceptedAnswer: { '@type': 'Answer', text: a },
+  })),
+});
+
+const breadcrumbList = (name, path) => ({
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Главная', item: absoluteUrl('/') },
+    { '@type': 'ListItem', position: 2, name, item: absoluteUrl(path) },
+  ],
+});
+
+/**
+ * JSON-LD для маршрута. Пустой список без VITE_SITE_URL — по той же причине,
+ * что и у canonical/og:url: item обязан быть абсолютным адресом.
+ */
+export function getStructuredData(pathname) {
+  if (!SITE_URL) return [];
+
+  const path = pathname.replace(/\/+$/, '') || '/';
+
+  if (path === '/') return [faqPage(HOME_FAQ)];
+
+  if (path.startsWith('/tool/')) {
+    const tool = SUPPORTED_TOOLS[path.slice('/tool/'.length)];
+    if (tool) {
+      return [
+        breadcrumbList(`${tool.sourceName} в ${tool.targetName}`, path),
+        faqPage(tool.faq),
+      ];
+    }
+  }
+
+  return [];
 }
 
 /** Все индексируемые маршруты: главный, каждый инструмент и юридические страницы. */

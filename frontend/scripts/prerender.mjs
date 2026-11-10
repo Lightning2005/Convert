@@ -11,12 +11,23 @@ const ssrEntry = path.join(root, '.vite-ssr', 'entry-server.js');
 // для браузера (import.meta.env) и для этого скрипта (process.env)
 Object.assign(process.env, loadEnv('production', root, 'VITE_'));
 
-const { SITE_URL, OG_IMAGE_PATH, OG_IMAGE_ALT, absoluteUrl, getSeo, getSitemapEntries } = await import(
+const { SITE_URL, OG_IMAGE_PATH, OG_IMAGE_ALT, absoluteUrl, getSeo, getSitemapEntries, getStructuredData } = await import(
   pathToFileURL(path.join(root, 'src', 'seo.js')).href
 );
 
 const escapeAttr = (value) =>
   String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+// JSON внутри <script> остаётся JSON, а не HTML, поэтому экранируются не кавычки,
+// а символы, которые иначе закрыли бы тег раньше времени: </script> в тексте
+// ответа FAQ разорвал бы блок и сломал всю разметку страницы.
+const jsonLdScript = (data) => {
+  const body = JSON.stringify(data)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
+  return `<script type="application/ld+json">${body}</script>`;
+};
 
 function headTags(seo) {
   const url = absoluteUrl(seo.path);
@@ -41,6 +52,9 @@ function headTags(seo) {
     tags.push(`<meta name="twitter:title" content="${escapeAttr(seo.title)}">`);
     tags.push(`<meta name="twitter:description" content="${escapeAttr(seo.description)}">`);
   }
+  // Robot читает эти блоки без JavaScript: ровно поэтому разметка попадает в
+  // статический HTML, а не только в клиентский Seo при гидратации.
+  for (const data of getStructuredData(seo.path)) tags.push(jsonLdScript(data));
   return tags.join('\n    ');
 }
 

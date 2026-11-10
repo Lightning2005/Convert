@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { SUPPORTED_TOOLS, MAX_FILE_SIZE_MB } from '../config/tools';
+import { HOME_FAQ } from '../config/faq';
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -15,12 +16,9 @@ export default function HomePage() {
   // Стейт для интерактивного FAQ аккордеона (хранит индекс открытого вопроса)
   const [openFaqIndex, setOpenFaqIndex] = useState(null);
 
-  // Лимиты количества файлов берём из конфигурации инструментов,
-  // чтобы текст страницы не расходился с реальным поведением формы
-  const perToolLimits = Object.values(SUPPORTED_TOOLS).map((tool) => tool.maxFiles);
-  const MIN_FILES_LIMIT = Math.min(...perToolLimits);
-  const MAX_FILES_LIMIT = Math.max(...perToolLimits);
-  const IMAGES_TO_PDF_LIMIT = SUPPORTED_TOOLS['jpg-to-pdf'].maxFiles;
+  // Лимиты количества файлов и ответы FAQ живут в config/faq.js: из того же
+  // источника читает их и JSON-LD, поэтому цифры в тексте страницы и в
+  // разметке для поисковика не могут разойтись.
 
   // Сетка инструментов собрана из Link, а не из navigate(): prerender отдаёт
   // статистику без JavaScript, и если ссылок нет в HTML, поисковый робот видит
@@ -30,30 +28,6 @@ export default function HomePage() {
   const toolGroups = [
     { key: 'pdf', title: 'Инструменты PDF', tools: toolsByCategory.filter((tool) => tool.category === 'pdf') },
     { key: 'image', title: 'Конвертер картинок', tools: toolsByCategory.filter((tool) => tool.category === 'image') },
-  ];
-
-  // Данные для блока FAQ
-  const faqData = [
-    {
-      q: 'Безопасно ли загружать мои файлы на ваш сайт?',
-      a: 'Да. Файлы нужны нам только для выполнения конвертации: исходники удаляются с сервера сразу после обработки, а готовые результаты хранятся не дольше одного часа и стираются фоновой задачей очистки. Мы не просматриваем, не копируем и не передаём ваши данные третьим лицам.'
-    },
-    {
-      q: 'Как сконвертировать несколько картинок в один PDF-документ?',
-      a: `Очень просто! Перейдите в инструмент «Картинки в PDF» через верхнее меню, перетащите в зону загрузки до ${IMAGES_TO_PDF_LIMIT} файлов за раз и нажмите кнопку «Конвертировать». Сервис автоматически соберет их в один аккуратный многостраничный PDF-файл.`
-    },
-    {
-      q: 'Портится ли качество изображений при конвертации?',
-      a: 'Зависит от формата. Конвертация в форматы без потерь (PNG, TIFF, BMP, ICO) сохраняет исходные пиксели. JPEG и WebP — форматы со сжатием с потерями, поэтому при пересохранении в них изображение слегка упрощается. В PDF страница всегда A4: изображение вписывается в неё с сохранением пропорций, а прозрачный фон становится белым.'
-    },
-    {
-      q: 'Есть ли ограничения на размер или количество файлов?',
-      a: `Да: количество файлов зависит от инструмента — от ${MIN_FILES_LIMIT} файлов для иконок ICO до ${MAX_FILES_LIMIT} для WebP. Файл тяжелее ${MAX_FILE_SIZE_MB} МБ сервер не принимает, а в инструментах «картинки в PDF» этот потолок считается по суммарному весу всех страниц: они уходят на сервер одним запросом.`
-    },
-    {
-      q: 'Нужно ли платить за использование сервиса?',
-      a: 'Нет, наш конвертер полностью бесплатен. Вам не нужно оформлять подписку, регистрироваться или вводить данные карт. Все инструменты доступны в полном объеме без каких-либо скрытых платежей или водяных знаков на готовых документах.'
-    }
   ];
 
   const getFileExtension = (filename) => {
@@ -344,7 +318,7 @@ export default function HomePage() {
         </h2>
 
         <div className="space-y-3">
-          {faqData.map((item, index) => {
+          {HOME_FAQ.map((item, index) => {
             const isOpen = openFaqIndex === index;
             return (
               <div

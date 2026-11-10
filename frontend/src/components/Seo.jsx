@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { absoluteUrl, getSeo } from '../seo';
+import { absoluteUrl, getSeo, getStructuredData } from '../seo';
 
 function upsert(selector, tag, attrs) {
   let el = document.head.querySelector(selector);
@@ -12,6 +12,21 @@ function upsert(selector, tag, attrs) {
   }
   for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
   return el;
+}
+
+// Разметка описывает то, что человек видит на этой странице, поэтому живые
+// FAQ-вопросы и хлебные крошки главной остались бы «висять» на странице
+// инструмента после перехода — поисковик читает расхождение как спам.
+// Скрипты удаляются все до одного: статический HTML собран prerender-ом без
+// различающего атрибута, и иначе после гидратации было бы два блока.
+function syncJsonLd(items) {
+  document.head.querySelectorAll('script[type="application/ld+json"]').forEach((el) => el.remove());
+  for (const data of items) {
+    const el = document.createElement('script');
+    el.type = 'application/ld+json';
+    el.textContent = JSON.stringify(data);
+    document.head.appendChild(el);
+  }
 }
 
 /** Синхронизирует <title>, description, canonical и Open Graph при переходах SPA. */
@@ -36,6 +51,7 @@ export default function Seo() {
       name: 'robots',
       content: seo.noindex ? 'noindex,follow' : 'index,follow',
     });
+    syncJsonLd(getStructuredData(location.pathname));
   }, [location.pathname]);
 
   return null;

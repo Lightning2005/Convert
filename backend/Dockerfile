@@ -29,8 +29,11 @@ RUN groupadd --system --gid 10001 app \
 # сборки, процесс без прав не перезапишет (collectstatic, sqlite).
 COPY --chown=app:app . /app/
 
-# Папка для временных файлов: в проде это отдельный том, права задаём заранее
-RUN mkdir -p /app/tmp_files && chown -R app:app /app
+# Рабочие каталоги под тома: права задаём заранее, потому что пустой именованный
+# том Docker инициализует содержимым и владельцем одноимённой папки образа. Если
+# папки в образе нет, том создаётся root:root, а процесс под uid app не может
+# ни создать db.sqlite3 («unable to open database file»), ни собрать статику.
+RUN mkdir -p /app/tmp_files /app/data /app/staticfiles && chown -R app:app /app
 
 USER app
 

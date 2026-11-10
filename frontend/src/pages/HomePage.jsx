@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { SUPPORTED_TOOLS, MAX_FILE_SIZE_MB } from '../config/tools';
 
 export default function HomePage() {
@@ -21,6 +21,16 @@ export default function HomePage() {
   const MIN_FILES_LIMIT = Math.min(...perToolLimits);
   const MAX_FILES_LIMIT = Math.max(...perToolLimits);
   const IMAGES_TO_PDF_LIMIT = SUPPORTED_TOOLS['jpg-to-pdf'].maxFiles;
+
+  // Сетка инструментов собрана из Link, а не из navigate(): prerender отдаёт
+  // статистику без JavaScript, и если ссылок нет в HTML, поисковый робот видит
+  // главную, где из документов только политика и контакты, а 22 инструмента
+  // остаются недостижимы кроме как из sitemap.xml.
+  const toolsByCategory = Object.entries(SUPPORTED_TOOLS).map(([slug, tool]) => ({ slug, ...tool }));
+  const toolGroups = [
+    { key: 'pdf', title: 'Инструменты PDF', tools: toolsByCategory.filter((tool) => tool.category === 'pdf') },
+    { key: 'image', title: 'Конвертер картинок', tools: toolsByCategory.filter((tool) => tool.category === 'image') },
+  ];
 
   // Данные для блока FAQ
   const faqData = [
@@ -295,6 +305,37 @@ export default function HomePage() {
           </p>
         </div>
       </div>
+
+      {/* БЛОК СЕО 1: СЕТКА ИНСТРУМЕНТОВ — единственные постоянные внутренние
+          ссылки на страницы конвертеров */}
+      <section id="tools" className="border-t border-ui-border pt-10 mb-16">
+        <h2 className="text-2xl font-extrabold text-text-primary text-center mb-2">
+          Все конвертеры файлов
+        </h2>
+        <p className="text-sm text-text-secondary text-center mb-8 max-w-2xl mx-auto">
+          Инструмент выбирается по формату исходного файла: у каждого своя страница с описанием, лимитами и частыми вопросами.
+        </p>
+        <div className="space-y-8">
+          {toolGroups.map((group) => (
+            <div key={group.key}>
+              <h3 className="font-bold text-text-primary text-sm md:text-base mb-3">{group.title}</h3>
+              <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                {group.tools.map((tool) => (
+                  <li key={tool.slug}>
+                    <Link
+                      to={`/tool/${tool.slug}`}
+                      className="flex min-h-11 items-center gap-2 rounded-xl border border-ui-border bg-main px-3 py-2 text-sm text-text-primary hover:border-primary hover:bg-primary-light transition-colors"
+                    >
+                      <span aria-hidden="true">{tool.icon}</span>
+                      <span className="truncate">{tool.sourceName} в {tool.targetName}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* БЛОК СЕО 2: ИНТЕРАКТИВНЫЙ FAQ АККОРДЕОН */}
       <div className="border-t border-ui-border pt-10">

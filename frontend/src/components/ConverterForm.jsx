@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { runConversion, downloadBlob } from '../services/api';
-import { MAX_FILE_SIZE_MB } from '../config/tools';
+import { SUPPORTED_TOOLS, MAX_FILE_SIZE_MB } from '../config/tools';
 import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers';
 
 // Импорты dnd-kit
@@ -157,7 +158,7 @@ function SortableFileItem({ id, item, index, onRemove, isLoading, isSortableEnab
   );
 }
 
-export default function ConverterForm({ config, preloadedFiles }) {
+export default function ConverterForm({ slug, config, preloadedFiles }) {
   // Форма пересоздаётся под каждый инструмент (key={slug} в ConverterPage), а файлы
   // приходят вместе с переходом с главной, поэтому список собирается один раз при
   // инициализации состояния — эффекта-синхронизатора здесь быть не должно.
@@ -193,6 +194,18 @@ export default function ConverterForm({ config, preloadedFiles }) {
         'Нажмите кнопку «Конвертировать»',
         `Дождитесь завершения обработки и скачайте готовый ${config.targetName}`,
       ];
+
+  // Смежные инструменты: сначала те, что берут тот же исходник, потом те, что
+  // дают ту же цель. Страница инструмента не должна быть тупиком, из которого
+  // можно уйти только в шапку, — и для робота это второй вход в документ.
+  const sameSource = [];
+  const sameTarget = [];
+  for (const [otherSlug, tool] of Object.entries(SUPPORTED_TOOLS)) {
+    if (otherSlug === slug) continue;
+    if (tool.source === config.source) sameSource.push([otherSlug, tool]);
+    else if (tool.target === config.target) sameTarget.push([otherSlug, tool]);
+  }
+  const relatedTools = [...sameSource, ...sameTarget].slice(0, 8);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -390,6 +403,12 @@ export default function ConverterForm({ config, preloadedFiles }) {
 
   return (
     <>
+      <nav aria-label="Хлебные крошки" className="w-full self-start text-xs text-text-secondary">
+        <Link to="/" className="hover:text-primary transition-colors">Главная</Link>
+        <span className="mx-1.5" aria-hidden="true">›</span>
+        <span>{config.sourceName} в {config.targetName}</span>
+      </nav>
+
       {/* ... Верхняя часть (заголовки и инпуты) без изменений ... */}
       <div className="text-center">
         <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-text-primary">
@@ -587,6 +606,23 @@ export default function ConverterForm({ config, preloadedFiles }) {
             ))}
           </div>
         </section>
+      </div>
+
+      <div className="w-full max-w-2xl border-t border-ui-border pt-6">
+        <h3 className="font-semibold text-lg mb-3 text-text-primary">Другие конвертеры</h3>
+        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {relatedTools.map(([otherSlug, tool]) => (
+            <li key={otherSlug}>
+              <Link
+                to={`/tool/${otherSlug}`}
+                className="flex min-h-11 items-center gap-2 rounded-xl border border-ui-border bg-surface-muted px-3 py-2 text-sm text-text-primary hover:border-primary hover:bg-primary-light transition-colors"
+              >
+                <span aria-hidden="true">{tool.icon}</span>
+                <span className="truncate">{tool.sourceName} в {tool.targetName}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
       </div>
     </>
   );

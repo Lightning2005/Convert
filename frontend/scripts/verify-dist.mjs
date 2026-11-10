@@ -103,6 +103,21 @@ for (const slug of Object.keys(SUPPORTED_TOOLS)) {
     `вопросов: ${faqCount}, шагов: ${stepCount}`);
 }
 
+// Перелинкование. Страница инструмента, на которую нет внутренней ссылки, для
+// робота живёт только в sitemap.xml — без ссылочного веса внутри сайта она не
+// индексируется. Проверка ловит момент, когда меню снова рендерится только по
+// клику и в prerender-HTML не остаётся ни одного href="/tool/…".
+const homeHtml = read('index.html');
+const unlinkedTools = Object.keys(SUPPORTED_TOOLS)
+  .filter((slug) => !homeHtml.includes(`href="/tool/${slug}"`));
+check('главная ссылается на каждый инструмент', unlinkedTools.length === 0,
+  `нет ссылок: ${unlinkedTools.join(', ')}`);
+
+const deadEndTools = Object.keys(SUPPORTED_TOOLS)
+  .filter((slug) => (read(`tool/${slug}/index.html`).match(/href="\/tool\//g) || []).length < 3);
+check('страница инструмента не тупик', deadEndTools.length === 0,
+  `мало исходящих ссылок: ${deadEndTools.join(', ')}`);
+
 // Места под рекламу появляются в разметке только вместе с id издателя: без
 // VITE_ADS_CLIENT на собранной странице не должно ни контейнеров, ни кнопки
 // «Закрыть рекламу» — фальшивую рекламу модератор читает как обещание показа.

@@ -25,5 +25,5 @@ export default function ConverterPage() {
   }
 
   // Передаем настройки и предзагруженные файлы в форму
-  return <ConverterForm key={slug} config={toolConfig} preloadedFiles={preloadedFiles} />;
+  return <ConverterForm key={slug} slug={slug} config={toolConfig} preloadedFiles={preloadedFiles} />;
 }

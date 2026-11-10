@@ -61,6 +61,19 @@ export default function MainLayout({ children }) {
     setMobileMenuOpen(false);
   }, [location]);
 
+  // React Router прокрутку не сбрасывает, а главная стала длинной: переход с
+  // сетки инструментов оставлял бы пользователя посреди текста чужой страницы.
+  // Первый рендер пропускаем — на перезагрузке позицию восстанавливает браузер,
+  // и сбрасывать её на 0 значит врать пользователю про «вернуться к чтению».
+  const isFirstLocation = useRef(true);
+  useEffect(() => {
+    if (isFirstLocation.current) {
+      isFirstLocation.current = false;
+      return;
+    }
+    window.scrollTo(0, 0);
+  }, [location]);
+
   // Блокировка скролла body при открытом мобильном меню
   useEffect(() => {
     if (mobileMenuOpen) {

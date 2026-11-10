@@ -236,7 +236,7 @@ export default function HomePage() {
               <div className="flex items-center gap-2 justify-end lg:shrink-0">
                 <button
                   onClick={handleCancel}
-                  className="p-2 text-text-secondary hover:text-primary-hover active:text-primary-active rounded-lg hover:bg-main/50 transition-colors text-sm"
+                  className="p-2 text-text-secondary hover:text-error active:text-error rounded-lg hover:bg-main/50 transition-colors text-sm"
                   title="Отмена"
                 >
                   ✕ Отмена

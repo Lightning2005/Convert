@@ -143,19 +143,19 @@ export default function HomePage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 text-left">
+    <div className="w-full max-w-4xl mx-auto px-4 py-6 text-left">
       {/* Hero-секция */}
-      <div className="text-center mb-10">
-        <h1 className="text-4xl font-extrabold text-text-primary tracking-tight sm:text-5xl mb-4">
+      <div className="text-center mb-6 sm:mb-10">
+        <h1 className="text-3xl font-extrabold text-text-primary tracking-tight sm:text-5xl mb-3 sm:mb-4">
           Умный конвертер файлов Конверт
         </h1>
-        <p className="text-lg text-text-secondary max-w-2xl mx-auto">
+        <p className="text-base sm:text-lg text-text-secondary max-w-2xl mx-auto">
           Быстрая и безопасная конвертация изображений и PDF документов онлайн. Без регистрации и водяных знаков.
         </p>
       </div>
 
       {/* Зона загрузки / Панель управления файлами */}
-      <div className="bg-main rounded-2xl border border-ui-border p-8 mb-16">
+      <div className="bg-main rounded-2xl border border-ui-border px-4 py-6 sm:p-8 mb-10 sm:mb-16">
         {selectedFiles.length === 0 ? (
           <div
             role="button"
@@ -170,7 +170,7 @@ export default function HomePage() {
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-ui-border rounded-xl p-12 text-center cursor-pointer hover:border-text-secondary/40 transition-colors bg-surface-muted group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="border-2 border-dashed border-ui-border rounded-xl p-6 sm:p-12 text-center cursor-pointer hover:border-text-secondary/40 transition-colors bg-surface-muted group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <input
               type="file"
@@ -179,12 +179,12 @@ export default function HomePage() {
               multiple
               className="hidden"
             />
-            <div className="mb-4 group-hover:scale-105 transition-transform text-text-secondary flex justify-center">
-              <svg className="h-12 w-12" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+            <div className="mb-3 sm:mb-4 group-hover:scale-105 transition-transform text-text-secondary flex justify-center">
+              <svg className="h-10 w-10 sm:h-12 sm:w-12" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
               </svg>
             </div>
-            <p className="text-xl font-medium text-text-primary mb-1">
+            <p className="text-lg sm:text-xl font-medium text-text-primary mb-1">
               Перетащите файлы сюда или <span className="text-primary font-semibold">выберите на устройстве</span>
             </p>
             <p className="text-xs text-text-secondary mt-2">
@@ -192,13 +192,13 @@ export default function HomePage() {
             </p>
           </div>
         ) : (
-          <div className="border border-ui-border rounded-xl p-6 bg-surface-muted">
+          <div className="border border-ui-border rounded-xl p-4 sm:p-6 bg-surface-muted">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <div>
+              <div className="min-w-0 lg:flex-1 lg:basis-0">
                 <span className="inline-block bg-primary-light text-primary text-xs font-semibold px-2.5 py-0.5 rounded-md mb-2 border border-primary/10">
                   Успешно добавлено: {selectedFiles.length} файл(ов)
                 </span>
-                <h3 className="text-base font-medium text-text-primary truncate max-w-md">
+                <h3 className="text-base font-medium text-text-primary truncate">
                   {selectedFiles.length === 1 ? selectedFiles[0].name : `${selectedFiles[0].name} и ещё ${selectedFiles.length - 1}...`}
                 </h3>
                 <p className="text-xs text-text-secondary mt-0.5">
@@ -206,7 +206,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 lg:shrink-0">
                 <span className="text-sm font-medium text-text-secondary whitespace-nowrap">Конвертировать в:</span>
                 <select
                   value={targetFormat}
@@ -221,7 +221,7 @@ export default function HomePage() {
                 </select>
               </div>
 
-              <div className="flex items-center gap-2 justify-end">
+              <div className="flex items-center gap-2 justify-end lg:shrink-0">
                 <button
                   onClick={handleCancel}
                   className="p-2 text-text-secondary hover:text-primary-hover active:text-primary-active rounded-lg hover:bg-main/50 transition-colors text-sm"

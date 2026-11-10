@@ -246,8 +246,9 @@ export default function MainLayout({ children }) {
 
       <CookieNotice />
 
-      {/* ОСНОВНОЙ КОНТЕНТЕР */}
-      <div className="flex-1 w-full flex p-6 gap-6 justify-between items-start relative max-w-[1600px] mx-auto py-12">
+      {/* ОСНОВНОЙ КОНТЕНТЕР. Отступы на мобильном уменьшены, потому что вместе с
+          px-4 страниц они съедали 80px из 393 ширины экрана. */}
+      <div className="flex-1 w-full flex gap-6 justify-between items-start relative max-w-[1600px] mx-auto px-4 py-6 sm:p-6 sm:py-12">
         {showAds && (
           <AdSlot
             id="ad-rail-left"

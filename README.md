@@ -46,6 +46,7 @@ webp, упаковка в zip и другие. Файл загружается �
 | `CORS_ALLOWED_ORIGINS` | backend | только если фронтенд живёт на отдельном домене |
 | `VITE_SITE_URL` | frontend | адрес сайта без завершающего слеша: canonical, og:url, robots.txt, sitemap.xml |
 | `VITE_ADS_TXT`, `VITE_ADS_CLIENT` | frontend | реклама, заполняется только после одобрения площадки |
+| `VITE_METRIKA_ID` | frontend | номер счётчика посещаемости; пустой — страницы собираются без тега Метрики |
 
 ## Лимиты загрузок
 

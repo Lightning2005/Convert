@@ -33,7 +33,8 @@ export default function CookieNotice() {
     >
       <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center gap-3">
         <p className="text-xs text-text-secondary leading-relaxed flex-1">
-          Мы используем файлы cookie, в том числе для показа рекламы Рекламной сети Яндекса.
+          Мы используем файлы cookie: для статистики посещений (Яндекс.Метрика) и, когда площадка
+          одобрена, для показа рекламы Рекламной сети Яндекса.
           Продолжая пользоваться сайтом, вы соглашаетесь с{' '}
           <Link to="/privacy" className="text-primary font-medium hover:underline">
             Политикой конфиденциальности

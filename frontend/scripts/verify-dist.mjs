@@ -156,6 +156,24 @@ check('404.html собрана и объясняет, что случилось'
   notFound.includes('Страница не найдена') && /content="noindex,follow"/.test(notFound),
   notFound ? 'нет текста или noindex' : 'файла нет');
 
+// Счётчик посещаемости живёт по тому же правилу, что и рекламные места: только
+// вместе со своим ID из кабинета. Проверяются обе ветки — отсутствие Метрики у
+// сайта без настроенного счётчика важно не меньше, чем её наличие на всех
+// страницах после настройки: иначе в отчётах модератора числится аудитория,
+// которую код не собирает.
+const metrikaId = (process.env.VITE_METRIKA_ID || '').trim();
+const allPageHtml = [...pages.map((path) => read(`${path === '/' ? '' : path}/index.html`)), notFound];
+const withCounter = allPageHtml.filter((html) => html.includes('mc.yandex.ru/metrika/tag.js'));
+
+check(
+  metrikaId ? `счётчик Метрики №${metrikaId} на каждой странице` : 'без VITE_METRIKA_ID счётчика посещаемости в сборке нет',
+  metrikaId
+    ? withCounter.length === allPageHtml.length
+      && allPageHtml.every((html) => html.includes(`ym(${metrikaId}, 'init'`))
+    : withCounter.length === 0,
+  `страниц со счётчиком: ${withCounter.length} из ${allPageHtml.length}`
+);
+
 // JSON-LD. Робот читает его без JavaScript, поэтому важны два факта: блок
 // парсится (битый JSON поисковик молча выбрасывает, и сборка об этом не
 // узнает) и его текст совпадает с тем, что человек видит на странице.

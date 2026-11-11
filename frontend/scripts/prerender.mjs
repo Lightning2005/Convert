@@ -59,7 +59,34 @@ function headTags(seo) {
 }
 
 const { renderRoute } = await import(pathToFileURL(ssrEntry).href);
-const template = await readFile(path.join(distDir, 'index.html'), 'utf8');
+const templateRaw = await readFile(path.join(distDir, 'index.html'), 'utf8');
+
+// Счётчик посещаемости. ID приходит из секрета сборки и попадает в HTML как
+// есть, поэтому принимается только цифрами; иначе сборка падает, а не пишет
+// произвольную строку в <head> каждой страницы.
+const metrikaId = (process.env.VITE_METRIKA_ID || '').trim();
+if (metrikaId && !/^\d+$/.test(metrikaId)) {
+  throw new Error(`VITE_METRIKA_ID — это номер счётчика, только цифры: ${JSON.stringify(metrikaId)}`);
+}
+
+// Вставляется в шаблон до подстановки seo-блока, чтобы пережить prerender: теги
+// внутри <!-- seo:start --> сборщик вытирает целиком. Webvisor сознательно не
+// включён — он записывает экран пользователя, а на конвертере в кадр попадают
+// имена и содержимое чужих файлов; для оценки аудитории достаточно хитов.
+const counterTag = metrikaId
+  ? `
+    <script>
+      (function (m, e, t, r, i, k, a) {
+        m[i] = m[i] || function () { (m[i].a = m[i].a || []).push(arguments); };
+        m[i].l = 1 * new Date();
+        for (var j = 0; j < e.scripts.length; j++) { if (e.scripts[j].src === r) { return; } }
+        k = e.createElement(t), a = e.getElementsByTagName(t)[0], k.async = 1, k.src = r, a.parentNode.insertBefore(k, a);
+      })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js', 'ym');
+      ym(${metrikaId}, 'init', { clickmap: true, trackLinks: true, accurateTrackBounce: true });
+    </script>
+`
+  : '';
+const template = counterTag ? templateRaw.replace('</head>', `${counterTag}  </head>`) : templateRaw;
 
 if (!template.includes('<!-- seo:start')) {
   throw new Error('В dist/index.html нет блока <!-- seo:start --> — нечего подставлять');
@@ -94,6 +121,9 @@ for (const { path: route } of routes) {
 }
 
 console.log(`Статических страниц собрано: ${written.length}`);
+console.log(metrikaId
+  ? `Счётчик Яндекс.Метрики N${metrikaId} вставлен во все страницы`
+  : 'VITE_METRIKA_ID не задан — страницы собраны без счётчика посещаемости.');
 
 // Страница для error_page отдающего сервера. Без неё у несуществующего адреса
 // либо заглушка nginx, либо шелл приложения с кодом 200 — «мягкий 404» пауком

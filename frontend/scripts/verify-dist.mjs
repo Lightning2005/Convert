@@ -64,6 +64,7 @@ for (const path of pages) {
     !/<meta name="twitter:image" content="https:\/\//.test(html) && 'twitter:image',
     !/<meta name="twitter:card" content="summary_large_image">/.test(html) && 'twitter:card',
     !/<meta name="description" content=".+">/.test(html) && 'description',
+    !html.includes('href="/favicon.ico"') && 'ссылка на favicon.ico',
   ].filter(Boolean);
 
   check(label, missing.length === 0, `нет: ${missing.join(', ')}`);
@@ -92,6 +93,27 @@ if (existsSync(manifestPath)) {
     manifest.icons.every((icon) => existsSync(join(DIST, icon.src.replace(/^\//, '')))));
   check('превью-картинка на месте', existsSync(join(DIST, 'og-image.png')));
 }
+
+// Фавикон: логотип в выдаче показывают только тогда, когда иконка читается на
+// 16 px, а однослойный .ico ломается именно там. Заголовок ICO разбирается по
+// байтам, чтобы правка иконок не превратилась снова в «обещали пять слоёв,
+// положили один» — такой расход ловится только проверкой файла, не глазком.
+const icoFile = join(DIST, 'favicon.ico');
+let icoLayers = [];
+if (existsSync(icoFile)) {
+  const ico = readFileSync(icoFile);
+  if (ico.length > 6 && ico.readUInt16LE(0) === 0 && ico.readUInt16LE(2) === 1) {
+    for (let i = 0; i < ico.readUInt16LE(4); i++) {
+      const width = ico[6 + 16 * i];
+      icoLayers.push(width === 0 ? 256 : width);
+    }
+  }
+}
+check('favicon.ico многослойный', [16, 24, 32, 48, 256].every((s) => icoLayers.includes(s)),
+  `слои: ${icoLayers.join(', ') || 'файл не разобран как ICO'}`);
+check('в <head> нет ссылки на favicon.svg',
+  !read('index.html').includes('favicon.svg'),
+  'SVG переопределяет слои в Chrome, а его штрих ~1% ширины исчезает на 16 px');
 
 // Текстовый наполнитель страниц инструментов: без него 22 страницы выглядят
 // как один шаблон.

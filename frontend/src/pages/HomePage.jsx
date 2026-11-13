@@ -22,9 +22,10 @@ export default function HomePage() {
 
   // Сетка инструментов собрана из Link, а не из navigate(): prerender отдаёт
   // статистику без JavaScript, и если ссылок нет в HTML, поисковый робот видит
-  // главную, где из документов только политика и контакты, а 22 инструмента
+  // главную, где из документов только политика и контакты, а инструменты
   // остаются недостижимы кроме как из sitemap.xml.
   const toolsByCategory = Object.entries(SUPPORTED_TOOLS).map(([slug, tool]) => ({ slug, ...tool }));
+  const toolCount = toolsByCategory.length;
   const toolGroups = [
     { key: 'pdf', title: 'Инструменты PDF', tools: toolsByCategory.filter((tool) => tool.category === 'pdf') },
     { key: 'image', title: 'Конвертер картинок', tools: toolsByCategory.filter((tool) => tool.category === 'image') },
@@ -52,13 +53,13 @@ export default function HomePage() {
     const availableTargets = getAvailableTargets(firstExt);
 
     if (availableTargets.length === 0) {
-      setError(`Формат .${firstExt} пока не поддерживается нашим конвертером.`);
+      setError(`Формат .${firstExt} не поддерживается. Список доступных форматов — в разделе «Все инструменты».`);
       return;
     }
 
     const isSameType = filesArray.every((file) => getFileExtension(file.name) === firstExt);
     if (!isSameType) {
-      setError('Для массовой конвертации выберите файлы одного формата (например, только JPG или только PDF).');
+      setError('Выберите файлы одного формата — например, только JPG или только PDF.');
       return;
     }
 
@@ -71,7 +72,7 @@ export default function HomePage() {
     );
 
     if (filesArray.length > maxFilesLimit) {
-      setError(`Превышен лимит! За один раз можно загрузить не более ${maxFilesLimit} файлов.`);
+      setError(`За один раз можно загрузить не более ${maxFilesLimit} файлов.`);
       return;
     }
 
@@ -81,7 +82,7 @@ export default function HomePage() {
     const maxBytes = MAX_FILE_SIZE_MB * 1024 * 1024;
     const tooHeavy = filesArray.filter((file) => file.size > maxBytes);
     if (tooHeavy.length > 0) {
-      setError(`Файлов тяжелее ${MAX_FILE_SIZE_MB} МБ: ${tooHeavy.length}. Пожалуйста, сожмите их или загружайте частями.`);
+      setError(`Файлов тяжелее ${MAX_FILE_SIZE_MB} МБ: ${tooHeavy.length}. Уберите их или загрузите по частям.`);
       return;
     }
 
@@ -105,7 +106,7 @@ export default function HomePage() {
     if (targetFormat === 'pdf') {
       const totalBytes = selectedFiles.reduce((acc, file) => acc + file.size, 0);
       if (totalBytes > MAX_FILE_SIZE_MB * 1024 * 1024) {
-        setError(`В PDF файлы собираются одним запросом, поэтому их суммарный вес не должен превышать ${MAX_FILE_SIZE_MB} МБ. Уберите часть файлов или сожмите их.`);
+        setError(`Для PDF файлы отправляются одним запросом, поэтому суммарный вес не должен превышать ${MAX_FILE_SIZE_MB} МБ. Уберите часть файлов.`);
         return;
       }
     }
@@ -131,10 +132,10 @@ export default function HomePage() {
       {/* Hero-секция */}
       <div className="text-center mb-6 sm:mb-10">
         <h1 className="text-3xl font-extrabold text-text-primary tracking-tight sm:text-5xl mb-3 sm:mb-4">
-          Умный конвертер файлов Конверт
+          Конвертер изображений и PDF онлайн
         </h1>
         <p className="text-base sm:text-lg text-text-secondary max-w-2xl mx-auto">
-          Быстрая и безопасная конвертация изображений и PDF документов онлайн. Без регистрации и водяных знаков.
+          Бесплатно, без регистрации и водяных знаков. Исходники удаляются сразу после обработки, результаты — в течение часа.
         </p>
       </div>
 
@@ -172,7 +173,7 @@ export default function HomePage() {
               Перетащите файлы сюда или <span className="text-primary font-semibold">выберите на устройстве</span>
             </p>
             <p className="text-xs text-text-secondary mt-2">
-              Макс. размер: {MAX_FILE_SIZE_MB} МБ на файл, для сборки PDF — суммарно. Поддерживаются PDF, JPG, PNG, WebP, TIFF, ICO, BMP, HEIC
+              До {MAX_FILE_SIZE_MB} МБ на файл; при сборке PDF лимит считается по сумме. Форматы: PDF, JPG, PNG, WebP, TIFF, BMP, HEIC, ICO.
             </p>
           </div>
         ) : (
@@ -180,7 +181,7 @@ export default function HomePage() {
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div className="min-w-0 lg:flex-1 lg:basis-0">
                 <span className="inline-block bg-primary-light text-primary text-xs font-semibold px-2.5 py-0.5 rounded-md mb-2 border border-primary/10">
-                  Успешно добавлено: {selectedFiles.length} файл(ов)
+                  Добавлено файлов: {selectedFiles.length}
                 </span>
                 <h3 className="text-base font-medium text-text-primary truncate">
                   {selectedFiles.length === 1 ? selectedFiles[0].name : `${selectedFiles[0].name} и ещё ${selectedFiles.length - 1}...`}
@@ -251,9 +252,9 @@ export default function HomePage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
           </div>
-          <h3 className="font-bold text-text-primary mb-2 text-sm md:text-base">Надежная защита</h3>
+          <h3 className="font-bold text-text-primary mb-2 text-sm md:text-base">Приватность</h3>
           <p className="text-xs text-text-secondary leading-relaxed">
-            Соединение защищено HTTPS. Исходные файлы удаляются сразу после обработки, а готовые результаты — в течение часа.
+            Соединение по HTTPS. Исходник удаляется сразу после конвертации, готовый файл — в течение часа, отдельной задачей очистки.
           </p>
         </div>
         <div className="bg-main p-6 rounded-2xl border border-ui-border text-center flex flex-col items-center">
@@ -262,9 +263,9 @@ export default function HomePage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
             </svg>
           </div>
-          <h3 className="font-bold text-text-primary mb-2 text-sm md:text-base">Максимальное качество</h3>
+          <h3 className="font-bold text-text-primary mb-2 text-sm md:text-base">Качество</h3>
           <p className="text-xs text-text-secondary leading-relaxed">
-            Форматы без потерь (PNG, TIFF, BMP) сохраняют исходные пиксели, JPEG и WebP сжимаются с потерями.
+            PNG, TIFF, BMP и ICO сохраняют пиксели без потерь. JPEG и WebP сжимают с потерями — это свойство самих форматов, а не конвертера.
           </p>
         </div>
         <div className="bg-main p-6 rounded-2xl border border-ui-border text-center flex flex-col items-center">
@@ -275,7 +276,7 @@ export default function HomePage() {
           </div>
           <h3 className="font-bold text-text-primary mb-2 text-sm md:text-base">Бесплатно</h3>
           <p className="text-xs text-text-secondary leading-relaxed">
-            Конвертируйте документы без водяных знаков, скрытых платежей, подписок и обязательной регистрации.
+            Все {toolCount} инструмента доступны без подписки, регистрации и данных карты. Водяных знаков на результатах нет.
           </p>
         </div>
       </div>
@@ -284,10 +285,10 @@ export default function HomePage() {
           ссылки на страницы конвертеров */}
       <section id="tools" className="border-t border-ui-border pt-10 mb-16">
         <h2 className="text-2xl font-extrabold text-text-primary text-center mb-2">
-          Все конвертеры файлов
+          Все инструменты
         </h2>
         <p className="text-sm text-text-secondary text-center mb-8 max-w-2xl mx-auto">
-          Инструмент выбирается по формату исходного файла: у каждого своя страница с описанием, лимитами и частыми вопросами.
+          {toolCount} конвертера по форматам: у каждого своя страница с описанием, лимитами и ответами на вопросы.
         </p>
         <div className="space-y-8">
           {toolGroups.map((group) => (
@@ -314,7 +315,7 @@ export default function HomePage() {
       {/* БЛОК СЕО 2: ИНТЕРАКТИВНЫЙ FAQ АККОРДЕОН */}
       <div className="border-t border-ui-border pt-10">
         <h2 className="text-2xl font-extrabold text-text-primary text-center mb-8">
-          Часто задаваемые вопросы (FAQ)
+          Частые вопросы
         </h2>
 
         <div className="space-y-3">

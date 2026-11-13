@@ -403,7 +403,7 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
 
   return (
     <>
-      <nav aria-label="Хлебные крошки" className="w-full self-start text-xs text-text-secondary">
+      <nav aria-label="Хлебные крошки" className="w-full self-start text-sm text-text-secondary">
         <Link to="/" className="hover:text-primary transition-colors">Главная</Link>
         <span className="mx-1.5" aria-hidden="true">›</span>
         <span>{config.sourceName} в {config.targetName}</span>

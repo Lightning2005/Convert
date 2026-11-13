@@ -90,6 +90,7 @@ class ConverterAPITestBase(APITestCase):
             'PNG': 'image/png',
             'WEBP': 'image/webp',
             'TIFF': 'image/tiff',
+            'HEIF': 'image/heic',
         }
         return SimpleUploadedFile(
             filename,
@@ -181,6 +182,17 @@ class ImagesToPdfAPITestCase(ConverterAPITestBase):
         pdf_content = b''.join(download_response.streaming_content)
 
         self.assertTrue(len(pdf_content) > 0)
+        self.assertEqual(pdf_content[:4], b'%PDF')
+        self.assertEqual(download_response['Content-Type'], 'application/pdf')
+
+    def test_heic_sources_are_accepted(self):
+        """HEIC — формат камеры iPhone: страница heic-to-pdf не должна требовать обходного JPG."""
+        url = reverse('images_to_pdf')
+        data = {'images': [self.make_upload('photo.heic', 'HEIF')]}
+
+        download_response = self.submit_and_download(url, data)
+        pdf_content = b''.join(download_response.streaming_content)
+
         self.assertEqual(pdf_content[:4], b'%PDF')
         self.assertEqual(download_response['Content-Type'], 'application/pdf')
 

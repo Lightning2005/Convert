@@ -70,6 +70,18 @@ for (const path of pages) {
   check(label, missing.length === 0, `нет: ${missing.join(', ')}`);
 }
 
+// Длинный description поисковик обрезает прямо в сниппете, и вместе с хвостом
+// пропадает обещание «до 20 файлов» — то, чем страница отличается от конкурента.
+const longDescriptions = pages
+  .map((path) => {
+    const html = read(`${path === '/' ? '' : path}/index.html`);
+    const match = html.match(/<meta name="description" content="([^"]*)">/);
+    return { path, length: match ? match[1].length : 0 };
+  })
+  .filter(({ length }) => length > 160);
+check('description не длиннее 160 символов', longDescriptions.length === 0,
+  longDescriptions.map(({ path, length }) => `${path}: ${length}`).join(', '));
+
 const robots = existsSync(join(DIST, 'robots.txt')) ? read('robots.txt') : '';
 const sitemap = existsSync(join(DIST, 'sitemap.xml')) ? read('sitemap.xml') : '';
 
@@ -227,7 +239,7 @@ const matchesVisible = (html, entity) => {
 };
 
 const homeLd = ldBlocks(homeHtml);
-check('JSON-LD главной парсится', homeLd.length === 1 && homeLd[0] !== null,
+check('JSON-LD главной парсится', homeLd.length === 3 && homeLd.every(Boolean),
   `блоков: ${homeLd.length}`);
 
 const homeFaq = byType(homeLd, 'FAQPage');
@@ -235,23 +247,44 @@ check('FAQ главной в разметке совпадает с видимы
   Boolean(homeFaq) && matchesVisible(homeHtml, homeFaq.mainEntity),
   homeFaq ? `вопросов в разметке: ${homeFaq.mainEntity.length}` : 'блока FAQPage нет');
 
+const homeOrg = byType(homeLd, 'Organization');
+const homeSite = byType(homeLd, 'WebSite');
+check('Organization главной описывает бренд, логотип и профиль',
+  Boolean(homeOrg) &&
+    homeOrg.name === 'Конверт' &&
+    homeOrg.logo?.url === absoluteUrl('/icon-512.png') &&
+    existsSync(join(DIST, 'icon-512.png')) &&
+    Array.isArray(homeOrg.sameAs) &&
+    homeOrg.sameAs.includes('https://github.com/Lightning2005/Convert'),
+  homeOrg ? `логотип: ${homeOrg.logo?.url ?? 'нет'}` : 'блока Organization нет');
+check('WebSite главной ссылается на Organization',
+  Boolean(homeSite) &&
+    homeSite.url === absoluteUrl('/') &&
+    homeSite.publisher?.['@id'] === homeOrg?.['@id'],
+  homeSite ? `publisher: ${homeSite.publisher?.['@id'] ?? 'нет'}` : 'блока WebSite нет');
+
 const ldProblems = [];
 for (const slug of Object.keys(SUPPORTED_TOOLS)) {
   const html = read(`tool/${slug}/index.html`);
   const blocks = ldBlocks(html);
   const faq = byType(blocks, 'FAQPage');
   const crumb = byType(blocks, 'BreadcrumbList');
+  const app = byType(blocks, 'SoftwareApplication');
   // Видимых вопросов на странице инструмента ровно столько, сколько <details>
   const visible = (withoutLd(html).match(/<details/g) || []).length;
   const ok =
-    blocks.length === 2 &&
+    blocks.length === 3 &&
     blocks.every(Boolean) &&
-    faq && crumb &&
+    faq && crumb && app &&
     faq.mainEntity.length === visible &&
     matchesVisible(html, faq.mainEntity) &&
     crumb.itemListElement.length === 2 &&
-    crumb.itemListElement.every((item, i) => /^https:\/\//.test(item.item) && (i === 0 || withoutLd(html).includes(item.name)));
-  if (!ok) ldProblems.push(`${slug} (блоков: ${blocks.length}, вопросов: ${faq ? faq.mainEntity.length : 0}, видимых: ${visible})`);
+    crumb.itemListElement.every((item, i) => /^https:\/\//.test(item.item) && (i === 0 || withoutLd(html).includes(item.name))) &&
+    app.url === absoluteUrl(`/tool/${slug}`) &&
+    app.applicationCategory === 'UtilitiesApplication' &&
+    app.offers?.price === '0' &&
+    app.name.includes(SUPPORTED_TOOLS[slug].sourceName);
+  if (!ok) ldProblems.push(`${slug} (блоков: ${blocks.length}, вопросов: ${faq ? faq.mainEntity.length : 0}, видимых: ${visible}, app: ${app ? 'есть' : 'нет'})`);
 }
 check('JSON-LD страниц инструментов парсится и совпадает с видимым текстом',
   ldProblems.length === 0, ldProblems.join('; '));

@@ -163,7 +163,7 @@ Windows даёт `PermissionError`, а не `IsADirectoryError`, и честна
 
 | Файл | Роль |
 |---|---|
-| `src/config/tools.js` | 22 инструмента: и поведение формы, и весь SEO-текст |
+| `src/config/tools.js` | 23 инструмента: и поведение формы, и весь SEO-текст |
 | `src/services/api.js` | контракт с бэкендом: отправка, опрос, скачивание, склейка батча |
 | `src/AppRoutes.jsx` | дерево маршрутов без роутера — его используют и браузер, и сборщик |
 | `src/entry-server.jsx` | `renderRoute(url)` → `renderToString` + `StaticRouter` |

@@ -20,8 +20,11 @@ rl_config.useA85 = 0
 # Регистрация плагина для поддержки HEIC
 register_heif_opener()
 
-# Максимальный размер слоя ICO, который понимает Windows
-ICO_SIZE = 256
+# Размеры слоёв внутри ICO. Один слой 256×256 приходилось уменьшать уже самому
+# потребителю: Windows и браузер считают 16 px своими фильтрами, и тонкий штрих
+# знака на таком размере пропадает. Готовые слои дают системе выбор без
+# пересчёта — так же собран favicon самого сайта (scripts/build_icons.py).
+ICO_SIZES = (16, 24, 32, 48, 64, 256)
 
 # Страниц PDF в памяти одновременно. convert_from_path возвращает список всех
 # отрендеренных страниц: 100 страниц A4 при 200 dpi это ~1,2 ГиБ, и пик на
@@ -31,20 +34,42 @@ PAGE_CHUNK = 10
 
 def _save_as_ico(img: Image.Image, output_path: str) -> None:
     """
-    ICO: одиночный слой 256x256. Картинка вписывается в квадрат с сохранением
-    пропорций, остаток заполняется прозрачностью — иначе логотип 4:1 превратился
-    бы в узнаваемое ни на что не похожее пятно.
+    ICO — это контейнер, как ZIP: заголовок, таблица записей и сами картинки.
+    Каждый «слой» — не слой из редактора, а отдельный готовый растр своего
+    размера; потребитель выбирает тот, что ему нужен, и не масштабирует сам.
+
+    Картинка вписывается в каждый квадрат с сохранением пропорций, остаток
+    заполняется прозрачностью — иначе логотип 4:1 превратился бы в пятно.
+    Pillow умеет писать ICO только из одной картинки и уменьшает остальные
+    размеры сам, поэтому контейнер собирается вручную.
     """
     rgba_img = img.convert('RGBA')
-    ratio = min(ICO_SIZE / rgba_img.width, ICO_SIZE / rgba_img.height)
-    resized_w = max(1, round(rgba_img.width * ratio))
-    resized_h = max(1, round(rgba_img.height * ratio))
-    resized = rgba_img.resize((resized_w, resized_h), Image.Resampling.LANCZOS)
+    layers = []
+    for size in ICO_SIZES:
+        ratio = min(size / rgba_img.width, size / rgba_img.height)
+        resized_w = max(1, round(rgba_img.width * ratio))
+        resized_h = max(1, round(rgba_img.height * ratio))
+        resized = rgba_img.resize((resized_w, resized_h), Image.Resampling.LANCZOS)
 
-    layer = Image.new('RGBA', (ICO_SIZE, ICO_SIZE), (0, 0, 0, 0))
-    layer.paste(resized, ((ICO_SIZE - resized_w) // 2, (ICO_SIZE - resized_h) // 2), resized)
+        layer = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+        layer.paste(resized, ((size - resized_w) // 2, (size - resized_h) // 2), resized)
 
-    layer.save(output_path, format="ICO", sizes=[(ICO_SIZE, ICO_SIZE)])
+        buffer = io.BytesIO()
+        layer.save(buffer, format='PNG', optimize=True)
+        layers.append((size, buffer.getvalue()))
+
+    # 6 байт заголовка, по 16 байт на запись, дальше данные записей подряд.
+    offset = 6 + 16 * len(layers)
+    directory = b''
+    payload = b''
+    for size, data in layers:
+        edge = 0 if size == 256 else size  # 0 в поле ширины означает 256
+        directory += struct.pack('<BBBBHHII', edge, edge, 0, 0, 1, 32, len(data), offset)
+        offset += len(data)
+        payload += data
+
+    with open(output_path, 'wb') as ico_file:
+        ico_file.write(struct.pack('<HHH', 0, 1, len(layers)) + directory + payload)
 
 
 class BaseConverter(ABC):

@@ -473,19 +473,19 @@ class GenericConvertAPITestCase(ConverterAPITestBase):
             # Pillow считывает размер первого (и в нашем случае единственного) слоя
             self.assertEqual(ico.size, (256, 256))
 
-    def test_ico_file_is_valid_single_frame(self):
-        """Проверяет структуру ICO: заголовок и наличие ровно 1 кадра."""
+    def test_ico_file_carries_every_layer(self):
+        """Проверяет структуру ICO: заголовок и по слою на каждый нужный размер."""
         content = self._convert_and_get_content('PNG', 'ico', 'test.png')
 
-        # Минимальная валидация сигнатуры ICO (0, 1, count)
         # Первые 2 байта: Reserved (0x0000)
         self.assertEqual(content[0:2], b'\x00\x00')
         # Следующие 2 байта: Type (0x0001 для ICO)
         self.assertEqual(content[2:4], b'\x01\x00')
 
-        # Следующие 2 байта: Количество изображений в контейнере (должно быть 1)
         count = int.from_bytes(content[4:6], 'little')
-        self.assertEqual(count, 1)
+        self.assertEqual(count, 6)
+        sizes = [content[6 + 16 * i] or 256 for i in range(count)]
+        self.assertEqual(sizes, [16, 24, 32, 48, 64, 256])
 
     def test_ico_keeps_source_aspect_ratio(self):
         """Не квадратная картинка не растягивается: 400x100 → 256x64 по центру."""
@@ -503,6 +503,34 @@ class GenericConvertAPITestCase(ConverterAPITestBase):
             left, top, right, bottom = alpha.getbbox()
 
         self.assertEqual((left, top, right - left, bottom - top), (0, 96, 256, 64))
+
+    def test_every_ico_layer_keeps_source_aspect_ratio(self):
+        """Каждый слой рисуется отдельно, поэтому пропорции держатся на всех размерах."""
+        url = reverse('generic_convert')
+        data = {
+            'file': self.make_upload('wide.png', 'PNG', size=(400, 100)),
+            'target': 'ico',
+        }
+
+        download_response = self.submit_and_download(url, data)
+        content = b''.join(download_response.streaming_content)
+
+        count = int.from_bytes(content[4:6], 'little')
+        for index in range(count):
+            entry = content[6 + 16 * index: 22 + 16 * index]
+            size = entry[0] or 256
+            length = int.from_bytes(entry[8:12], 'little')
+            offset = int.from_bytes(entry[12:16], 'little')
+
+            with Image.open(io.BytesIO(content[offset:offset + length])) as layer:
+                left, top, right, bottom = layer.convert('RGBA').getchannel('A').getbbox()
+
+            expected_height = round(size * 100 / 400)
+            with self.subTest(size=size):
+                self.assertEqual(
+                    (left, top, right - left, bottom - top),
+                    (0, (size - expected_height) // 2, size, expected_height),
+                )
 
     def test_palette_png_with_transparency_turns_white_in_jpeg(self):
         """PNG-8 с tRNS открывается как mode='P': без перевода в RGBA фон был чёрным."""

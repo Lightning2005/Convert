@@ -172,6 +172,19 @@ class GenericImageConverter(BaseConverter):
         img = Image.open(input_path)
         img = ImageOps.exif_transpose(img)
 
+        # Палитра с прозрачностью (PNG-8 с tRNS, старые редакторы) открывается
+        # как mode='P', а не RGBA. Без этого перевода прозрачные пиксели при
+        # сохранении в JPEG становились чёрными, хотя по обещанию страницы
+        # фон должен заливаться белым.
+        if img.mode == 'P' and 'transparency' in img.info:
+            img = img.convert('RGBA')
+
+        # CMYK (типографские JPEG и сканы), YCbCr, LAB и HSV Pillow пишет только
+        # в JPEG и TIFF. В PNG, BMP, WebP и ICO такой режим валит задачу
+        # OSError «cannot write mode CMYK as PNG», поэтому переводим в RGB.
+        if img.mode in ('CMYK', 'YCbCr', 'LAB', 'HSV'):
+            img = img.convert('RGB')
+
         if target_format in ['jpg', 'jpeg'] and img.mode in ('RGBA', 'LA'):
             background = Image.new('RGB', img.size, (255, 255, 255))
             background.paste(img, mask=img.split()[-1])

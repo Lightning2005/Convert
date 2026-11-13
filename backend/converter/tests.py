@@ -504,6 +504,44 @@ class GenericConvertAPITestCase(ConverterAPITestBase):
 
         self.assertEqual((left, top, right - left, bottom - top), (0, 96, 256, 64))
 
+    def test_palette_png_with_transparency_turns_white_in_jpeg(self):
+        """PNG-8 с tRNS открывается как mode='P': без перевода в RGBA фон был чёрным."""
+        buffer = io.BytesIO()
+        palette = Image.new('P', (100, 100), 0)
+        palette.putpalette([0, 0, 0, 220, 30, 30] + [0, 0, 0] * 254)
+        palette.paste(1, (0, 0, 50, 100))
+        palette.save(buffer, format='PNG', transparency=0)
+        upload = SimpleUploadedFile('palette.png', buffer.getvalue(), content_type='image/png')
+
+        download_response = self.submit_and_download(
+            reverse('generic_convert'), {'file': upload, 'target': 'jpg'}
+        )
+        content = b''.join(download_response.streaming_content)
+
+        with Image.open(io.BytesIO(content)) as result:
+            self.assertEqual(result.mode, 'RGB')
+            self.assertEqual(result.getpixel((75, 50)), (255, 255, 255))
+
+    def test_cmyk_jpeg_is_converted_to_rgb(self):
+        """CMYK приходит из типографий и сканов: PNG и BMP его не принимают."""
+        for target, signature in (('png', b'\x89PNG'), ('bmp', b'BM')):
+            with self.subTest(target=target):
+                buffer = io.BytesIO()
+                Image.new('CMYK', (100, 100), (0, 255, 255, 0)).save(buffer, format='JPEG')
+                upload = SimpleUploadedFile(
+                    'print.jpg', buffer.getvalue(), content_type='image/jpeg'
+                )
+
+                download_response = self.submit_and_download(
+                    reverse('generic_convert'), {'file': upload, 'target': target}
+                )
+                content = b''.join(download_response.streaming_content)
+
+                self.assertEqual(content[:len(signature)], signature)
+                with Image.open(io.BytesIO(content)) as result:
+                    self.assertEqual(result.mode, 'RGB')
+                    self.assertGreater(result.getpixel((50, 50))[0], 200)
+
     def test_invalid_target_format(self):
         data = {
             'file': self.make_upload('test.png', 'PNG'),

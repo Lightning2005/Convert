@@ -26,13 +26,24 @@ register_heif_opener()
 # пересчёта — так же собран favicon самого сайта (scripts/build_icons.py).
 ICO_SIZES = (16, 24, 32, 48, 64, 256)
 
+# Порог «значок исчез в мелком размере». Слой 16×16 — это 256 ячеек; если
+# плотных (альфа ≥ 128) меньше восьми, в панели задач и на вкладке останется
+# пустое место, и человек увидит не иконку, а её отсутствие.
+ICO_LEGIBLE_MIN_PIXELS = 8
+
 # Страниц PDF в памяти одновременно. convert_from_path возвращает список всех
 # отрендеренных страниц: 100 страниц A4 при 200 dpi это ~1,2 ГиБ, и пик на
 # 100-страничном документе весом 45 КБ доходил до 3,2 ГиБ воркера.
 PAGE_CHUNK = 10
 
 
-def _save_as_ico(img: Image.Image, output_path: str) -> None:
+def _visible_pixels(layer: Image.Image) -> int:
+    """Сколько пикселей слоя действительно видно: полупрозрачная дымка не в счёт."""
+    histogram = layer.getchannel('A').histogram()
+    return sum(histogram[128:])
+
+
+def _save_as_ico(img: Image.Image, output_path: str) -> dict:
     """
     ICO — это контейнер, как ZIP: заголовок, таблица записей и сами картинки.
     Каждый «слой» — не слой из редактора, а отдельный готовый растр своего
@@ -42,6 +53,9 @@ def _save_as_ico(img: Image.Image, output_path: str) -> None:
     заполняется прозрачностью — иначе логотип 4:1 превратился бы в пятно.
     Pillow умеет писать ICO только из одной картинки и уменьшает остальные
     размеры сам, поэтому контейнер собирается вручную.
+
+    Возвращает предупреждение, если на 16 px от рисунка ничего не осталось:
+    сам конвертер рисунок не упростит, но обязан сказать об этом вслух.
     """
     rgba_img = img.convert('RGBA')
     layers = []
@@ -54,15 +68,19 @@ def _save_as_ico(img: Image.Image, output_path: str) -> None:
         layer = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         layer.paste(resized, ((size - resized_w) // 2, (size - resized_h) // 2), resized)
 
-        buffer = io.BytesIO()
-        layer.save(buffer, format='PNG', optimize=True)
-        layers.append((size, buffer.getvalue()))
+        layers.append((size, layer))
+
+    visible = _visible_pixels(layers[0][1])
 
     # 6 байт заголовка, по 16 байт на запись, дальше данные записей подряд.
     offset = 6 + 16 * len(layers)
     directory = b''
     payload = b''
-    for size, data in layers:
+    for size, layer in layers:
+        buffer = io.BytesIO()
+        layer.save(buffer, format='PNG', optimize=True)
+        data = buffer.getvalue()
+
         edge = 0 if size == 256 else size  # 0 в поле ширины означает 256
         directory += struct.pack('<BBBBHHII', edge, edge, 0, 0, 1, 32, len(data), offset)
         offset += len(data)
@@ -70,6 +88,16 @@ def _save_as_ico(img: Image.Image, output_path: str) -> None:
 
     with open(output_path, 'wb') as ico_file:
         ico_file.write(struct.pack('<HHH', 0, 1, len(layers)) + directory + payload)
+
+    if visible < ICO_LEGIBLE_MIN_PIXELS:
+        return {
+            'warning': (
+                f'Иконка почти исчезнет в мелком размере: на слое 16×16 видно '
+                f'{visible} точек из 256. Сделайте знак проще — толще линии, '
+                f'меньше деталей, — иначе во вкладке браузера останется пустое место.'
+            )
+        }
+    return {}
 
 
 class BaseConverter(ABC):
@@ -189,7 +217,8 @@ class GenericImageConverter(BaseConverter):
         'heic': 'HEIF',
     }
 
-    def convert(self, input_path: str, output_path: str, **kwargs) -> None:
+    def convert(self, input_path: str, output_path: str, **kwargs) -> dict:
+        """Возвращает пояснения к результату: сейчас это только предупреждение ICO."""
         target_format = kwargs.get('target_format', '').lower()
         if target_format not in self.SUPPORTED_FORMATS:
             raise ValueError(f"Формат {target_format} не поддерживается.")
@@ -218,9 +247,9 @@ class GenericImageConverter(BaseConverter):
             img = img.convert('RGB')
 
         if target_format == 'ico':
-            _save_as_ico(img, output_path)
-        else:
-            img.save(output_path, format=self.SUPPORTED_FORMATS[target_format])
+            return _save_as_ico(img, output_path)
+        img.save(output_path, format=self.SUPPORTED_FORMATS[target_format])
+        return {}
 
 
 class ConverterFactory:

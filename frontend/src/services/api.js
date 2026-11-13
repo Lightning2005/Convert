@@ -85,7 +85,9 @@ async function submitAndAwait(submit, signal) {
   }
   if (task.status !== 'SUCCESS') throw new Error(taskError(task));
 
-  return downloadResult(task, signal);
+  // warning приходит от бэкенда, когда результат формально готов, но с ним
+  // что-то не так (например, иконка исчезнет на 16 px).
+  return { blob: await downloadResult(task, signal), warning: task.warning };
 }
 
 export function swapExtension(filename, newExt) {
@@ -125,7 +127,7 @@ export async function convertImagesToPdf(files, signal) {
   const formData = new FormData();
   files.forEach((file) => formData.append('images', file));
 
-  const blob = await submitAndAwait(
+  const { blob } = await submitAndAwait(
     (abortSignal) => postFormData('/api/images-to-pdf/', formData, abortSignal),
     signal,
   );
@@ -146,7 +148,7 @@ function pdfFormData(pdfFile, target) {
 
 /** PDF → ZIP с изображениями */
 export async function convertPdfToImages(pdfFile, target = 'jpg', signal) {
-  const blob = await submitAndAwait(
+  const { blob } = await submitAndAwait(
     (abortSignal) => postFormData('/api/pdf-to-images/', pdfFormData(pdfFile, target), abortSignal),
     signal,
   );
@@ -168,12 +170,12 @@ const imageTargetExt = (target) => (target === 'jpeg' ? 'jpg' : target);
 
 /** Одно изображение → другой формат */
 export async function convertImage(file, target, signal) {
-  const blob = await submitAndAwait(
+  const { blob, warning } = await submitAndAwait(
     (abortSignal) => postFormData('/api/convert/', imageFormData(file, target), abortSignal),
     signal,
   );
 
-  return { blob, filename: swapExtension(file.name, imageTargetExt(target)) };
+  return { blob, filename: swapExtension(file.name, imageTargetExt(target)), notice: warning };
 }
 
 /**
@@ -199,7 +201,7 @@ async function runBatch(files, { endpoint, makeForm, makeName, unit, emptyError,
     const task = finished.get(job.task_id);
     if (!task) throw new Error('Задача не вернула результат.');
     if (task.status !== 'SUCCESS') throw new Error(taskError(task));
-    return { blob: await downloadResult(task, signal), filename: makeName(job.file) };
+    return { blob: await downloadResult(task, signal), filename: makeName(job.file), warning: task.warning };
   }));
   const done = results.filter((r) => r.status === 'fulfilled').map((r) => r.value);
 
@@ -210,12 +212,15 @@ async function runBatch(files, { endpoint, makeForm, makeName, unit, emptyError,
   if (timedOut.length > 0) {
     notice += ` Часть задач не завершилась за ${Math.round(POLL_INTERVAL_MS * POLL_MAX_ATTEMPTS / 1000)} секунд.`;
   }
+  // Одинаковые предупреждения от пяти иконок не нужно повторять пять раз.
+  const warnings = [...new Set(done.map((result) => result.warning).filter(Boolean))];
+  notice = [notice, ...warnings].filter(Boolean).join(' ');
 
   if (done.length === 0) {
     throw new Error(sendFailure?.message || emptyError);
   }
   if (done.length === 1) {
-    return { ...done[0], notice };
+    return { blob: done[0].blob, filename: done[0].filename, notice };
   }
 
   return { ...(await merge(done)), notice };

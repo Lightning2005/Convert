@@ -20,4 +20,4 @@ def convert_pdf_to_images(pdf_path: str, output_path: str, target_format='jpg', 
 def convert_image(input_path: str, output_path: str, target_format: str):
     """Делегируем одиночную конвертацию универсальной стратегии изображений."""
     converter = ConverterFactory.get_by_action('generic_image')
-    converter.convert(input_path, output_path, target_format=target_format)
+    return converter.convert(input_path, output_path, target_format=target_format)

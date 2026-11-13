@@ -162,6 +162,8 @@ def task_snapshot(task_id):
                 # Отдаём путь, а не absolute URI: адрес сборки ответа зависит от
                 # заголовка Host, а фронтенд сам знает, откуда он качает.
                 snapshot['download_url'] = reverse('file_download', kwargs={'filename': filename})
+                if payload.get('warning'):
+                    snapshot['warning'] = payload['warning']
         else:
             snapshot['status'] = 'FAILURE'
             snapshot['error'] = payload.get('error', 'Unknown error during conversion')

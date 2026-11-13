@@ -17,7 +17,7 @@ from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings, SimpleTestCase
 from django.urls import reverse
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageDraw, UnidentifiedImageError
 from rest_framework.test import APITestCase
 from rest_framework.throttling import SimpleRateThrottle
 
@@ -531,6 +531,44 @@ class GenericConvertAPITestCase(ConverterAPITestBase):
                     (left, top, right - left, bottom - top),
                     (0, (size - expected_height) // 2, size, expected_height),
                 )
+
+    @staticmethod
+    def _thin_line_upload(size=512):
+        """Знак с линией в 1 px: при сжатии до 16 px она целиком уходит в дымку."""
+        image = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+        ImageDraw.Draw(image).line(
+            [(size // 4, size // 2), (size * 3 // 4, size // 2)],
+            fill=(37, 99, 235, 255),
+            width=1,
+        )
+        buffer = io.BytesIO()
+        image.save(buffer, format='PNG')
+        return SimpleUploadedFile('thin.png', buffer.getvalue(), content_type='image/png')
+
+    def _ico_task_result(self, upload):
+        """Отправляет файл в очередь и возвращает снимок задачи после SUCCESS."""
+        response = self.client.post(self.url, {'file': upload, 'target': 'ico'}, format='multipart')
+        self.assertEqual(response.status_code, 202, response.data)
+
+        status_response = self.client.get(
+            reverse('task_status', kwargs={'task_id': response.data['task_id']})
+        )
+        self.assertEqual(status_response.data['status'], 'SUCCESS', status_response.data)
+        return status_response.data
+
+    def test_icon_that_vanishes_at_16px_comes_with_a_warning(self):
+        """Тонкая линия не оставляет на 16 px ни одного плотного пикселя — об этом надо сказать."""
+        payload = self._ico_task_result(self._thin_line_upload())
+
+        self.assertIn('warning', payload)
+        self.assertIn('16×16', payload['warning'])
+        self.assertIn('видно 0 точек из 256', payload['warning'])
+
+    def test_solid_icon_gets_no_warning(self):
+        """Заливка занимает весь квадрат 16×16, предупреждения нет."""
+        payload = self._ico_task_result(self.make_upload('solid.png', 'PNG', size=(400, 300)))
+
+        self.assertNotIn('warning', payload)
 
     def test_palette_png_with_transparency_turns_white_in_jpeg(self):
         """PNG-8 с tRNS открывается как mode='P': без перевода в RGBA фон был чёрным."""

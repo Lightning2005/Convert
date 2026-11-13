@@ -80,10 +80,16 @@ def generic_convert_task(self, input_path: str, output_filename: str, target_for
     output_path = os.path.join(tmp_dir(), output_filename)
     part_path = f'{output_path}.part'
     try:
+        extras = {}
         if not is_already_done(output_path):
-            services.convert_image(input_path, part_path, target_format)
+            extras = services.convert_image(input_path, part_path, target_format) or {}
             os.replace(part_path, output_path)
-        return {"status": "SUCCESS", "result_file": output_filename}
+        result = {"status": "SUCCESS", "result_file": output_filename}
+        # Предупреждение (например, «значок исчезнет на 16 px») едет вместе с
+        # результатом: страница показывает его рядом с кнопкой скачивания.
+        if extras.get('warning'):
+            result['warning'] = extras['warning']
+        return result
     except Exception as e:
         return {"status": "FAILURE", "error": describe_failure(e)}
     finally:

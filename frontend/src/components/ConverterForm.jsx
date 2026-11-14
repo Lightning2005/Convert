@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { runConversion, downloadBlob } from '../services/api';
 import { SUPPORTED_TOOLS, MAX_FILE_SIZE_MB } from '../config/tools';
+import { getToolComparison } from '../config/comparisons';
 import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers';
 
 // Импорты dnd-kit
@@ -159,6 +160,8 @@ function SortableFileItem({ id, item, index, onRemove, isLoading, isSortableEnab
 }
 
 export default function ConverterForm({ slug, config, preloadedFiles }) {
+  const navigate = useNavigate();
+
   // Форма пересоздаётся под каждый инструмент (key={slug} в ConverterPage), а файлы
   // приходят вместе с переходом с главной, поэтому список собирается один раз при
   // инициализации состояния — эффекта-синхронизатора здесь быть не должно.
@@ -173,11 +176,42 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
     : ''));
   const [notice, setNotice] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [suggestedRedirect, setSuggestedRedirect] = useState(null);
   const fileInputRef = useRef(null);
   const inFlightRef = useRef(false);
   const abortRef = useRef(null);
 
   const isSortableEnabled = config.targetName?.toUpperCase() === 'PDF';
+  const comparisonRows = getToolComparison(slug);
+
+  const handleShare = async () => {
+    const shareData = {
+      title: `Конвертер ${config.sourceName} в ${config.targetName} онлайн бесплатно — Конверт`,
+      text: `Бесплатный онлайн-конвертер ${config.sourceName} в ${config.targetName} без регистрации.`,
+      url: typeof window !== 'undefined' ? window.location.href : '',
+    };
+
+    if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
+      }
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      } catch {
+        // Fallback
+      }
+    }
+  };
 
   // config.steps — три шага инструмента: загрузка, обработка, результат. Строка
   // про порядок файлов вставляется в середину только там, где список действительно
@@ -268,6 +302,7 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
   const handleFiles = (newFiles) => {
     setError('');
     setNotice('');
+    setIsSuccess(false);
     const allowedExts = config.accept.toLowerCase().split(',').map((s) => s.trim());
 
     const filtered = newFiles.filter((file) => {
@@ -276,6 +311,67 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
     });
 
     const rejected = newFiles.length - filtered.length;
+
+    // Умная перелинковка (Smart Intent Routing): если загружен файл неподдерживаемого
+    // формата, проверяем, есть ли подходящий конвертер, и предлагаем перейти в него.
+    if (rejected > 0) {
+      const rejectedFiles = newFiles.filter((file) => {
+        const ext = `.${file.name.split('.').pop().toLowerCase()}`;
+        return !allowedExts.includes(ext);
+      });
+      const counts = {};
+      for (const f of rejectedFiles) {
+        const ext = f.name.split('.').pop().toLowerCase();
+        counts[ext] = (counts[ext] || 0) + 1;
+      }
+      const domExt = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+
+      let bestSlug = null;
+      // 1. С тем же целевым форматом (например: на jpg-to-pdf сбросили heic -> heic-to-pdf)
+      for (const [s, t] of Object.entries(SUPPORTED_TOOLS)) {
+        if (s === slug) continue;
+        const exts = t.accept.toLowerCase().split(',').map(x => x.trim().replace('.', ''));
+        if (exts.includes(domExt) && t.target === config.target) {
+          bestSlug = s;
+          break;
+        }
+      }
+      // 2. Конвертирует в исходный формат текущего инструмента
+      if (!bestSlug) {
+        for (const [s, t] of Object.entries(SUPPORTED_TOOLS)) {
+          if (s === slug) continue;
+          const exts = t.accept.toLowerCase().split(',').map(x => x.trim().replace('.', ''));
+          if (exts.includes(domExt) && t.target === config.source) {
+            bestSlug = s;
+            break;
+          }
+        }
+      }
+      // 3. Любой популярный конвертер для этого формата
+      if (!bestSlug) {
+        for (const [s, t] of Object.entries(SUPPORTED_TOOLS)) {
+          if (s === slug) continue;
+          const exts = t.accept.toLowerCase().split(',').map(x => x.trim().replace('.', ''));
+          if (exts.includes(domExt)) {
+            bestSlug = s;
+            break;
+          }
+        }
+      }
+
+      if (bestSlug) {
+        setSuggestedRedirect({
+          slug: bestSlug,
+          tool: SUPPORTED_TOOLS[bestSlug],
+          files: rejectedFiles.filter(f => f.name.toLowerCase().endsWith('.' + domExt)),
+          extName: domExt.toUpperCase(),
+        });
+      } else {
+        setSuggestedRedirect(null);
+      }
+    } else {
+      setSuggestedRedirect(null);
+    }
 
     if (filtered.length === 0) {
       setError(`Пожалуйста, выберите файлы в формате ${config.sourceName}`);
@@ -367,6 +463,8 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
     setFiles([]);
     setError('');
     setNotice('');
+    setIsSuccess(false);
+    setSuggestedRedirect(null);
   };
 
   const handleSubmit = async () => {
@@ -378,6 +476,7 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
     setIsLoading(true);
     setError('');
     setNotice('');
+    setIsSuccess(false);
 
     try {
       const rawFilesArray = files.map(item => item.file);
@@ -386,6 +485,7 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
       // прилетели бы уже в несуществующий экран.
       if (controller.signal.aborted) return;
       downloadBlob(result.blob, result.filename);
+      setIsSuccess(true);
       if (result.notice) setNotice(result.notice);
     } catch (err) {
       if (controller.signal.aborted) return;
@@ -403,10 +503,23 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
 
   return (
     <>
-      <nav aria-label="Хлебные крошки" className="w-full self-start text-sm text-text-secondary">
-        <Link to="/" className="hover:text-primary transition-colors">Главная</Link>
-        <span className="mx-1.5" aria-hidden="true">›</span>
-        <span>{config.sourceName} в {config.targetName}</span>
+      <nav aria-label="Хлебные крошки" className="w-full self-start text-sm text-text-secondary flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center">
+          <Link to="/" className="hover:text-primary transition-colors">Главная</Link>
+          <span className="mx-1.5" aria-hidden="true">›</span>
+          <span>{config.sourceName} в {config.targetName}</span>
+        </div>
+        <button
+          type="button"
+          onClick={handleShare}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-text-secondary hover:text-text-primary bg-surface-muted hover:bg-ui-border/50 border border-ui-border rounded-lg transition-colors cursor-pointer"
+          title="Поделиться ссылкой на конвертер"
+        >
+          <svg className="w-3.5 h-3.5 text-current shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+          </svg>
+          <span>{copied ? 'Ссылка скопирована!' : 'Поделиться'}</span>
+        </button>
       </nav>
 
       {/* ... Верхняя часть (заголовки и инпуты) без изменений ... */}
@@ -476,6 +589,51 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
           {isLoading ? 'Пожалуйста, не закрывайте вкладку' : `Поддерживаются только файлы с расширением ${config.sourceName} (Макс: ${config.maxFiles} шт., ${MAX_FILE_SIZE_MB} МБ${config.target === 'pdf' ? ' суммарно' : ' на файл'})`}
         </span>
       </div>
+
+      {suggestedRedirect && (
+        <div className="w-full max-w-xl bg-primary/5 border border-primary/30 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm animate-fadeIn">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl shrink-0" aria-hidden="true">{suggestedRedirect.tool.icon}</span>
+            <div>
+              <p className="font-semibold text-text-primary">
+                Обнаружен формат {suggestedRedirect.extName}
+              </p>
+              <p className="text-text-secondary text-xs mt-0.5">
+                Хотите открыть конвертер «{suggestedRedirect.tool.sourceName} в {suggestedRedirect.tool.targetName}»?
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate(`/tool/${suggestedRedirect.slug}`, { state: { preloadedFiles: suggestedRedirect.files } })}
+            className="shrink-0 w-full sm:w-auto font-semibold bg-primary text-white text-xs px-3.5 py-2 rounded-xl hover:bg-primary-hover active:scale-[0.99] transition shadow-xs cursor-pointer"
+          >
+            Перейти с этими файлами →
+          </button>
+        </div>
+      )}
+
+      {isSuccess && (
+        <div className="w-full max-w-xl bg-success/10 border border-success/30 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm animate-fadeIn">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl shrink-0" aria-hidden="true">🎉</span>
+            <div>
+              <p className="font-semibold text-text-primary">Файл успешно сконвертирован и скачивается!</p>
+              <p className="text-xs text-text-secondary mt-0.5">Понравился сервис? Поделитесь ссылкой с друзьями или коллегами.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleShare}
+            className="shrink-0 flex items-center gap-1.5 font-medium px-3.5 py-1.5 rounded-lg bg-main border border-ui-border hover:border-primary text-text-primary hover:text-primary transition-colors text-xs shadow-xs cursor-pointer"
+          >
+            <svg className="w-3.5 h-3.5 text-current shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+            </svg>
+            <span>{copied ? 'Скопировано!' : 'Поделиться'}</span>
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="w-full max-w-xl bg-error/10 border-l-4 border-error p-4 rounded-r-xl text-sm text-error font-medium">
@@ -586,6 +744,36 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
             ))}
           </div>
         </section>
+
+        {comparisonRows && (
+          <section>
+            <h3 className="font-semibold text-lg mb-3 text-text-primary">
+              Сравнение форматов {config.sourceName} и {config.targetName}
+            </h3>
+            <div className="overflow-x-auto rounded-xl border border-ui-border">
+              <table className="w-full text-left text-sm text-text-secondary border-collapse">
+                <thead className="bg-surface-muted text-xs uppercase text-text-primary font-semibold border-b border-ui-border">
+                  <tr>
+                    <th scope="col" className="px-4 py-3">Параметр</th>
+                    <th scope="col" className="px-4 py-3">{config.sourceName}</th>
+                    <th scope="col" className="px-4 py-3">{config.targetName}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ui-border bg-main">
+                  {comparisonRows.map((row, index) => (
+                    <tr key={index} className="hover:bg-surface-muted/50 transition-colors">
+                      <th scope="row" className="px-4 py-3 font-medium text-text-primary whitespace-nowrap">
+                        {row.param}
+                      </th>
+                      <td className="px-4 py-3">{row.source}</td>
+                      <td className="px-4 py-3 font-medium text-text-primary">{row.target}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
         <section>
           <h3 className="font-semibold text-lg mb-3 text-text-primary">Частые вопросы</h3>

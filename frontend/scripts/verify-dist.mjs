@@ -127,7 +127,7 @@ check('в <head> нет ссылки на favicon.svg',
   !read('index.html').includes('favicon.svg'),
   'SVG переопределяет слои в Chrome, а его штрих ~1% ширины исчезает на 16 px');
 
-// Текстовый наполнитель страниц инструментов: без него 22 страницы выглядят
+// Текстовый наполнитель страниц инструментов: без него 23 страницы выглядят
 // как один шаблон.
 for (const slug of Object.keys(SUPPORTED_TOOLS)) {
   const html = read(`tool/${slug}/index.html`);

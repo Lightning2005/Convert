@@ -412,7 +412,7 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
       {/* ... Верхняя часть (заголовки и инпуты) без изменений ... */}
       <div className="text-center">
         <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-text-primary">
-          Конвертация {config.sourceName} в {config.targetName}
+          Конвертер {config.sourceName} в {config.targetName} онлайн
         </h1>
         <p className="mt-2 text-text-secondary">
           {config.description || `Быстрый и безопасный способ превратить ваши файлы в аккуратный ${config.targetName} документ`}

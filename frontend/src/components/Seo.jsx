@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { absoluteUrl, getSeo, getStructuredData } from '../seo';
+import { SITE_NAME, absoluteUrl, getSeo, getStructuredData } from '../seo';
 
 function upsert(selector, tag, attrs) {
   let el = document.head.querySelector(selector);
@@ -29,7 +29,7 @@ function syncJsonLd(items) {
   }
 }
 
-/** Синхронизирует <title>, description, canonical и Open Graph при переходах SPA. */
+/** Синхронизирует <title>, description, canonical, Open Graph и Twitter Cards при переходах SPA. */
 export default function Seo() {
   const location = useLocation();
 
@@ -39,18 +39,27 @@ export default function Seo() {
 
     document.title = seo.title;
     upsert('meta[name="description"]', 'meta', { name: 'description', content: seo.description });
-    upsert('meta[property="og:title"]', 'meta', { property: 'og:title', content: seo.title });
-    upsert('meta[property="og:description"]', 'meta', { property: 'og:description', content: seo.description });
-    upsert('meta[property="og:type"]', 'meta', { property: 'og:type', content: 'website' });
-    upsert('meta[property="og:locale"]', 'meta', { property: 'og:locale', content: 'ru_RU' });
-    if (url) {
-      upsert('meta[property="og:url"]', 'meta', { property: 'og:url', content: url });
-      upsert('link[rel="canonical"]', 'link', { rel: 'canonical', href: url });
-    }
     upsert('meta[name="robots"]', 'meta', {
       name: 'robots',
       content: seo.noindex ? 'noindex,follow' : 'index,follow',
     });
+    if (url) {
+      upsert('link[rel="canonical"]', 'link', { rel: 'canonical', href: url });
+    }
+
+    upsert('meta[property="og:type"]', 'meta', { property: 'og:type', content: 'website' });
+    upsert('meta[property="og:locale"]', 'meta', { property: 'og:locale', content: 'ru_RU' });
+    upsert('meta[property="og:site_name"]', 'meta', { property: 'og:site_name', content: SITE_NAME });
+    upsert('meta[property="og:title"]', 'meta', { property: 'og:title', content: seo.title });
+    upsert('meta[property="og:description"]', 'meta', { property: 'og:description', content: seo.description });
+    if (url) {
+      upsert('meta[property="og:url"]', 'meta', { property: 'og:url', content: url });
+    }
+
+    upsert('meta[name="twitter:card"]', 'meta', { name: 'twitter:card', content: 'summary_large_image' });
+    upsert('meta[name="twitter:title"]', 'meta', { name: 'twitter:title', content: seo.title });
+    upsert('meta[name="twitter:description"]', 'meta', { name: 'twitter:description', content: seo.description });
+
     syncJsonLd(getStructuredData(location.pathname));
   }, [location.pathname]);
 

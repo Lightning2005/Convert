@@ -41,7 +41,7 @@ export function getSeo(pathname) {
 
   if (path === '/') {
     return {
-      title: `${SITE_NAME} — бесплатный онлайн-конвертер файлов`,
+      title: `Конвертер изображений и PDF онлайн бесплатно — ${SITE_NAME}`,
       description: HOME_DESCRIPTION,
       path,
     };
@@ -52,7 +52,7 @@ export function getSeo(pathname) {
     const tool = SUPPORTED_TOOLS[slug];
     if (tool) {
       return {
-        title: `${tool.sourceName} в ${tool.targetName} — конвертировать онлайн · ${SITE_NAME}`,
+        title: `${tool.sourceName} в ${tool.targetName} онлайн бесплатно — конвертер «${SITE_NAME}»`,
         description: describeTool(tool),
         path,
       };

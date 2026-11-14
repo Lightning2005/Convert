@@ -104,7 +104,7 @@ function FileItemView({
           </div>
         )}
 
-        <span className="text-sm font-medium text-text-primary truncate">{item.file.name}</span>
+        <span className="text-sm sm:text-base font-medium text-text-primary truncate">{item.file.name}</span>
       </div>
 
       {!isLoading && !isOverlay && (
@@ -527,7 +527,7 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
         <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-text-primary">
           Конвертер {config.sourceName} в {config.targetName} онлайн
         </h1>
-        <p className="mt-2 text-text-secondary">
+        <p className="mt-2.5 text-base sm:text-lg text-text-secondary leading-normal">
           {config.description || `Быстрый и безопасный способ превратить ваши файлы в аккуратный ${config.targetName} документ`}
         </p>
       </div>
@@ -559,7 +559,7 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
         onDragLeave={handleDrag}
         onDrop={handleDrop}
         onClick={onButtonClick}
-        className={`w-full max-w-xl aspect-video border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center p-6 cursor-pointer transition select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+        className={`w-full max-w-2xl aspect-video border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center p-6 sm:p-8 cursor-pointer transition select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
           isDragActive
             ? 'bg-primary/5 border-primary text-primary scale-[1.01]'
             : 'bg-surface-muted border-ui-border text-text-secondary hover:bg-surface-muted/80 hover:border-text-secondary/40'
@@ -582,23 +582,23 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
           )}
         </div>
 
-        <span className="font-semibold text-base md:text-lg text-text-primary">
+        <span className="font-semibold text-base sm:text-lg md:text-xl text-text-primary">
           {isLoading ? 'Обработка файлов на сервере...' : isDragActive ? 'Сбросьте файлы сюда' : 'Перетащите файлы сюда или нажмите для выбора'}
         </span>
-        <span className="text-xs text-text-secondary font-normal mt-2">
+        <span className="text-sm sm:text-base text-text-secondary font-normal mt-2">
           {isLoading ? 'Пожалуйста, не закрывайте вкладку' : `Поддерживаются только файлы с расширением ${config.sourceName} (Макс: ${config.maxFiles} шт., ${MAX_FILE_SIZE_MB} МБ${config.target === 'pdf' ? ' суммарно' : ' на файл'})`}
         </span>
       </div>
 
       {suggestedRedirect && (
-        <div className="w-full max-w-xl bg-primary/5 border border-primary/30 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm animate-fadeIn">
+        <div className="w-full max-w-2xl bg-primary/5 border border-primary/30 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm sm:text-base animate-fadeIn">
           <div className="flex items-start gap-3">
             <span className="text-2xl shrink-0" aria-hidden="true">{suggestedRedirect.tool.icon}</span>
             <div>
               <p className="font-semibold text-text-primary">
                 Обнаружен формат {suggestedRedirect.extName}
               </p>
-              <p className="text-text-secondary text-xs mt-0.5">
+              <p className="text-text-secondary text-sm mt-1">
                 Хотите открыть конвертер «{suggestedRedirect.tool.sourceName} в {suggestedRedirect.tool.targetName}»?
               </p>
             </div>
@@ -606,7 +606,7 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
           <button
             type="button"
             onClick={() => navigate(`/tool/${suggestedRedirect.slug}`, { state: { preloadedFiles: suggestedRedirect.files } })}
-            className="shrink-0 w-full sm:w-auto font-semibold bg-primary text-white text-xs px-3.5 py-2 rounded-xl hover:bg-primary-hover active:scale-[0.99] transition shadow-xs cursor-pointer"
+            className="shrink-0 w-full sm:w-auto font-semibold bg-primary text-white text-sm px-4 py-2 rounded-xl hover:bg-primary-hover active:scale-[0.99] transition shadow-xs cursor-pointer"
           >
             Перейти с этими файлами →
           </button>
@@ -614,18 +614,18 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
       )}
 
       {isSuccess && (
-        <div className="w-full max-w-xl bg-success/10 border border-success/30 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm animate-fadeIn">
+        <div className="w-full max-w-2xl bg-success/10 border border-success/30 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm sm:text-base animate-fadeIn">
           <div className="flex items-center gap-2.5">
             <span className="text-xl shrink-0" aria-hidden="true">🎉</span>
             <div>
               <p className="font-semibold text-text-primary">Файл успешно сконвертирован и скачивается!</p>
-              <p className="text-xs text-text-secondary mt-0.5">Понравился сервис? Поделитесь ссылкой с друзьями или коллегами.</p>
+              <p className="text-sm text-text-secondary mt-1">Понравился сервис? Поделитесь ссылкой с друзьями или коллегами.</p>
             </div>
           </div>
           <button
             type="button"
             onClick={handleShare}
-            className="shrink-0 flex items-center gap-1.5 font-medium px-3.5 py-1.5 rounded-lg bg-main border border-ui-border hover:border-primary text-text-primary hover:text-primary transition-colors text-xs shadow-xs cursor-pointer"
+            className="shrink-0 flex items-center gap-1.5 font-medium px-4 py-2 rounded-lg bg-main border border-ui-border hover:border-primary text-text-primary hover:text-primary transition-colors text-sm shadow-xs cursor-pointer"
           >
             <svg className="w-3.5 h-3.5 text-current shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
@@ -636,23 +636,23 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
       )}
 
       {error && (
-        <div className="w-full max-w-xl bg-error/10 border-l-4 border-error p-4 rounded-r-xl text-sm text-error font-medium">
+        <div className="w-full max-w-2xl bg-error/10 border-l-4 border-error p-4 rounded-r-xl text-sm sm:text-base text-error font-medium">
           {error}
         </div>
       )}
 
       {notice && (
-        <div className="w-full max-w-xl bg-warning/10 border-l-4 border-warning p-4 rounded-r-xl text-sm text-warning font-medium">
+        <div className="w-full max-w-2xl bg-warning/10 border-l-4 border-warning p-4 rounded-r-xl text-sm sm:text-base text-warning font-medium">
           {notice}
         </div>
       )}
 
       {files.length > 0 && (
-        <div className="w-full max-w-xl flex flex-col gap-3 animate-fadeIn">
-          <div className="w-full text-sm text-text-secondary flex justify-between px-1 items-center">
+        <div className="w-full max-w-2xl flex flex-col gap-3 animate-fadeIn">
+          <div className="w-full text-sm sm:text-base text-text-secondary flex justify-between px-1 items-center">
             <span>Выбрано файлов: <span className="font-bold text-text-primary">{files.length}</span> из {config.maxFiles}</span>
             {!isLoading && (
-              <button onClick={handleClearAll} className="min-h-11 inline-flex items-center text-error hover:underline font-medium text-xs">Очистить список</button>
+              <button onClick={handleClearAll} className="min-h-11 inline-flex items-center text-error hover:underline font-semibold text-sm">Очистить список</button>
             )}
           </div>
 
@@ -701,7 +701,7 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
         <button
           onClick={handleSubmit}
           disabled={isLoading}
-          className={`w-full max-w-xl text-white font-bold py-3.5 px-6 rounded-xl transition flex items-center justify-center gap-2 ${
+          className={`w-full max-w-2xl text-white font-bold py-3.5 px-6 rounded-xl transition flex items-center justify-center gap-2 text-base sm:text-lg ${
             isLoading
               ? 'bg-primary/50 cursor-not-allowed'
               : 'bg-primary hover:bg-primary-hover active:scale-[0.99]'
@@ -722,8 +722,8 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
       )}
 
       <div className="w-full max-w-2xl border-t border-ui-border pt-6">
-        <h3 className="font-semibold text-lg mb-2 text-text-primary">Как это работает:</h3>
-        <ol className="list-decimal pl-5 space-y-1 text-text-secondary text-base">
+        <h3 className="font-semibold text-lg sm:text-xl mb-3 text-text-primary">Как это работает:</h3>
+        <ol className="list-decimal pl-5 space-y-1.5 text-text-secondary text-base sm:text-lg leading-relaxed">
           {steps.map((step, index) => (
             <li key={index}>{step}</li>
           ))}
@@ -735,10 +735,10 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
           отвечает на вопрос без JS — текст остаётся в prerender-HTML. */}
       <div className="w-full max-w-2xl border-t border-ui-border pt-6 space-y-6">
         <section>
-          <h2 className="font-semibold text-lg mb-3 text-text-primary">
+          <h2 className="font-semibold text-lg sm:text-xl mb-3 text-text-primary">
             Что нужно знать про {config.sourceName} и {config.targetName}
           </h2>
-          <div className="space-y-3 text-base leading-relaxed text-text-secondary">
+          <div className="space-y-3.5 text-base sm:text-lg leading-relaxed text-text-secondary">
             {config.about.map((paragraph, index) => (
               <p key={index}>{paragraph}</p>
             ))}
@@ -747,11 +747,11 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
 
         {comparisonRows && (
           <section>
-            <h3 className="font-semibold text-lg mb-3 text-text-primary">
+            <h3 className="font-semibold text-lg sm:text-xl mb-3 text-text-primary">
               Сравнение форматов {config.sourceName} и {config.targetName}
             </h3>
             <div className="overflow-x-auto rounded-xl border border-ui-border">
-              <table className="w-full text-left text-sm text-text-secondary border-collapse">
+              <table className="w-full text-left text-sm sm:text-base text-text-secondary border-collapse">
                 <thead className="bg-surface-muted text-xs uppercase text-text-primary font-semibold border-b border-ui-border">
                   <tr>
                     <th scope="col" className="px-4 py-3">Параметр</th>
@@ -776,20 +776,20 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
         )}
 
         <section>
-          <h3 className="font-semibold text-lg mb-3 text-text-primary">Частые вопросы</h3>
+          <h3 className="font-semibold text-lg sm:text-xl mb-3 text-text-primary">Частые вопросы</h3>
           <div className="space-y-2">
             {config.faq.map((item, index) => (
               <details
                 key={index}
                 className="group rounded-xl border border-ui-border bg-main"
               >
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3.5 text-base font-semibold text-text-primary [&::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3.5 text-base sm:text-lg font-semibold text-text-primary [&::-webkit-details-marker]:hidden">
                   <span>{item.q}</span>
                   <svg className="h-3 w-3 shrink-0 fill-current text-text-secondary transition-transform duration-200 group-open:rotate-180" viewBox="0 0 20 20" aria-hidden="true">
                     <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
                   </svg>
                 </summary>
-                <p className="px-4 pb-4 text-base leading-relaxed text-text-secondary">{item.a}</p>
+                <p className="px-4 pb-4 text-base sm:text-lg leading-relaxed text-text-secondary">{item.a}</p>
               </details>
             ))}
           </div>
@@ -797,13 +797,13 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
       </div>
 
       <div className="w-full max-w-2xl border-t border-ui-border pt-6">
-        <h3 className="font-semibold text-lg mb-3 text-text-primary">Другие конвертеры</h3>
+        <h3 className="font-semibold text-lg sm:text-xl mb-3 text-text-primary">Другие конвертеры</h3>
         <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {relatedTools.map(([otherSlug, tool]) => (
             <li key={otherSlug}>
               <Link
                 to={`/tool/${otherSlug}`}
-                className="flex min-h-11 items-center gap-2 rounded-xl border border-ui-border bg-surface-muted px-3 py-2 text-sm text-text-primary hover:border-primary hover:bg-primary-light transition-colors"
+                className="flex min-h-11 items-center gap-2 rounded-xl border border-ui-border bg-surface-muted px-3 py-2 text-sm sm:text-base text-text-primary hover:border-primary hover:bg-primary-light transition-colors"
               >
                 <span aria-hidden="true">{tool.icon}</span>
                 <span className="truncate">{tool.sourceName} в {tool.targetName}</span>

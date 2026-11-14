@@ -26,6 +26,15 @@ export default function HomePage() {
   // остаются недостижимы кроме как из sitemap.xml.
   const toolsByCategory = Object.entries(SUPPORTED_TOOLS).map(([slug, tool]) => ({ slug, ...tool }));
   const toolCount = toolsByCategory.length;
+
+  const pluralize = (n, one, few, many) => {
+    const mod10 = n % 10;
+    const mod100 = n % 100;
+    if (mod100 >= 11 && mod100 <= 19) return many;
+    if (mod10 === 1) return one;
+    if (mod10 >= 2 && mod10 <= 4) return few;
+    return many;
+  };
   const toolGroups = [
     { key: 'pdf', title: 'Инструменты PDF', tools: toolsByCategory.filter((tool) => tool.category === 'pdf') },
     { key: 'image', title: 'Конвертер картинок', tools: toolsByCategory.filter((tool) => tool.category === 'image') },
@@ -276,7 +285,7 @@ export default function HomePage() {
           </div>
           <h3 className="font-bold text-text-primary mb-2 text-sm md:text-base">Бесплатно</h3>
           <p className="text-xs text-text-secondary leading-relaxed">
-            Все {toolCount} инструмента доступны без подписки, регистрации и данных карты. Водяных знаков на результатах нет.
+            Все {toolCount} {pluralize(toolCount, 'инструмент', 'инструмента', 'инструментов')} доступны без подписки, регистрации и данных карты. Водяных знаков на результатах нет.
           </p>
         </div>
       </div>
@@ -288,7 +297,7 @@ export default function HomePage() {
           Все инструменты
         </h2>
         <p className="text-sm text-text-secondary text-center mb-8 max-w-2xl mx-auto">
-          {toolCount} конвертера по форматам: у каждого своя страница с описанием, лимитами и ответами на вопросы.
+          {toolCount} {pluralize(toolCount, 'конвертер', 'конвертера', 'конвертеров')} по форматам: у каждого своя страница с описанием, лимитами и ответами на вопросы.
         </p>
         <div className="space-y-8">
           {toolGroups.map((group) => (

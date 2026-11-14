@@ -196,6 +196,22 @@ class ImagesToPdfAPITestCase(ConverterAPITestBase):
         self.assertEqual(pdf_content[:4], b'%PDF')
         self.assertEqual(download_response['Content-Type'], 'application/pdf')
 
+    def test_tiff_and_bmp_sources_are_accepted(self):
+        """TIFF и BMP — сканы и растр: страницы tiff-to-pdf и bmp-to-pdf собирают документ."""
+        url = reverse('images_to_pdf')
+        data = {
+            'images': [
+                self.make_upload('scan.tiff', 'TIFF'),
+                self.make_upload('drawing.bmp', 'BMP'),
+            ]
+        }
+
+        download_response = self.submit_and_download(url, data)
+        pdf_content = b''.join(download_response.streaming_content)
+
+        self.assertEqual(pdf_content[:4], b'%PDF')
+        self.assertEqual(download_response['Content-Type'], 'application/pdf')
+
     def test_pdf_all_pages_use_portrait_a4(self):
         """Portrait и landscape изображения → все страницы portrait A4."""
         url = reverse('images_to_pdf')

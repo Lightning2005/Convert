@@ -153,7 +153,7 @@ export default function MainLayout({ children }) {
   // Панели меню всегда смонтированы, а закрытая скрывается через visibility, а не
   // размонтированием: prerender отдаёт статический HTML без JavaScript, и если
   // ссылки живут только в открытом дропдауне, робот видит сайт из трёх страниц —
-  // 23 инструмента остаются без единственной внутренней ссылки. visibility:hidden
+  // 25 инструментов остаются без единственной внутренней ссылки. visibility:hidden
   // при этом снимает их и из Tab-порядка, и с пути курсора.
   const dropdownPanelClass = (open) =>
     `absolute left-1/2 -translate-x-1/2 mt-3 w-[25rem] max-h-[70vh] overflow-y-auto grid grid-cols-2 gap-x-2 gap-y-0.5 bg-main rounded-xl border border-ui-border p-2 z-50 text-text-primary shadow-lg [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-ui-border [&::-webkit-scrollbar-thumb]:rounded-full ${open ? 'visible animate-fadeIn' : 'invisible'}`;

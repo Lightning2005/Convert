@@ -3,16 +3,17 @@ import { Link, useNavigate } from 'react-router-dom';
 import { runConversion, downloadBlob } from '../services/api';
 import { SUPPORTED_TOOLS, MAX_FILE_SIZE_MB } from '../config/tools';
 import { getToolComparison } from '../config/comparisons';
-import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 
 // Импорты dnd-kit
 import {
   DndContext,
   closestCenter,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
-  DragOverlay // <-- Добавили оверлей
+  DragOverlay
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -81,10 +82,12 @@ function FileItemView({
           <div
             {...attributes}
             {...listeners}
-            className="cursor-grab active:cursor-grabbing min-h-11 min-w-11 flex items-center justify-center p-1 text-text-secondary hover:text-text-primary rounded-md hover:bg-surface-muted transition-colors shrink-0"
+            className="cursor-grab active:cursor-grabbing min-h-11 min-w-11 flex items-center justify-center p-1 text-text-secondary hover:text-text-primary rounded-md hover:bg-surface-muted transition-colors shrink-0 select-none touch-none"
+            style={{ touchAction: 'none' }}
             title="Перетащите для изменения порядка страниц"
+            aria-label="Перетащите для изменения порядка страниц"
           >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M9 5a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm6-12a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4z" />
             </svg>
           </div>
@@ -242,9 +245,15 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
   const relatedTools = [...sameSource, ...sameTarget].slice(0, 8);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: {
         distance: 5,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 100,
+        tolerance: 5,
       },
     })
   );
@@ -656,13 +665,22 @@ export default function ConverterForm({ slug, config, preloadedFiles }) {
             )}
           </div>
 
+          {isSortableEnabled && files.length > 1 && (
+            <p className="text-xs sm:text-sm text-text-secondary px-1 -mt-1 flex items-center gap-1.5">
+              <svg className="w-4 h-4 shrink-0 text-primary" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 5a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm6-12a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4z" />
+              </svg>
+              <span>Порядок страниц можно менять перетаскиванием за значок с точками</span>
+            </p>
+          )}
+
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
-            onDragStart={handleDragStart} // <-- Подключили
+            onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
-            onDragCancel={handleDragCancel} // <-- Подключили
-            modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+            onDragCancel={handleDragCancel}
+            modifiers={[restrictToVerticalAxis]}
           >
             <SortableContext items={files.map(f => f.id)} strategy={verticalListSortingStrategy}>
               <div className="flex flex-col gap-2 max-h-64 overflow-y-auto pr-1 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-ui-border [&::-webkit-scrollbar-thumb]:rounded-full">

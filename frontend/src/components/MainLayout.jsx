@@ -325,16 +325,16 @@ export default function MainLayout({ children }) {
       )}
 
       {/* ПОДВАЛ */}
-      <footer className="w-full text-center text-xs text-text-secondary py-6 mt-auto border-t border-ui-border bg-main/50 backdrop-blur-sm flex flex-col sm:flex-row justify-center items-center gap-4 sm:gap-8 shrink-0">
+      <footer className="w-full text-center text-xs text-text-secondary py-6 mt-auto border-t border-ui-border bg-main/50 backdrop-blur-sm flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-8 shrink-0 px-4">
         {/* Год попадает в prerender-HTML на момент сборки: до первого релиза в
             новом году статичная страница и клиент расходятся на одну цифру. */}
-        <div suppressHydrationWarning={true}>
+        <div suppressHydrationWarning={true} className="flex items-center justify-center">
           &copy; {new Date().getFullYear()} Конверт. Все права защищены.
         </div>
-        <div className="flex gap-4 font-medium">
-          <Link to="/privacy" className="min-h-11 flex items-center hover:text-primary transition">Политика конфиденциальности</Link>
-          <span className="text-ui-border">|</span>
-          <Link to="/contacts" className="min-h-11 flex items-center hover:text-primary transition">Контакты</Link>
+        <div className="flex items-center justify-center gap-3 sm:gap-4 font-medium">
+          <Link to="/privacy" className="min-h-11 inline-flex items-center hover:text-primary transition">Политика конфиденциальности</Link>
+          <span className="w-px h-3.5 bg-ui-border shrink-0" aria-hidden="true" />
+          <Link to="/contacts" className="min-h-11 inline-flex items-center hover:text-primary transition">Контакты</Link>
         </div>
       </footer>
 

@@ -6,9 +6,9 @@ Django==6.0.6
 django-cors-headers==4.9.0
 djangorestframework==3.17.1
 gunicorn==26.2.0
-pdf2image==1.17.0
 pillow==12.2.0
 pillow-heif==1.4.0
+PyMuPDF==1.25.3
 redis==8.0.1
 reportlab==5.0.0
 sqlparse==0.5.5

@@ -392,7 +392,10 @@ class PdfToImagesAPITestCase(ConverterAPITestBase):
         url = reverse('pdf_to_images')
         data = {'pdf': self.create_test_pdf_upload(), 'target': 'jpg'}
 
-        with patch('converter.strategies.pdfinfo_from_path', return_value={'Pages': 0}):
+        mock_doc = Mock()
+        mock_doc.__len__ = Mock(return_value=0)
+        mock_doc.is_encrypted = False
+        with patch('converter.strategies.fitz.open', return_value=mock_doc):
             post_response = self.client.post(url, data, format='multipart')
             status_response = self.client.get(
                 reverse('task_status', kwargs={'task_id': post_response.data['task_id']})
@@ -400,6 +403,22 @@ class PdfToImagesAPITestCase(ConverterAPITestBase):
 
         self.assertEqual(status_response.data['status'], 'FAILURE', status_response.data)
         self.assertEqual(status_response.data['error'], 'В документе нет страниц.')
+
+    def test_encrypted_pdf_fails_with_clear_error(self):
+        """Зашифрованный PDF → понятное сообщение о пароле."""
+        url = reverse('pdf_to_images')
+        data = {'pdf': self.create_test_pdf_upload(), 'target': 'jpg'}
+
+        mock_doc = Mock()
+        mock_doc.is_encrypted = True
+        with patch('converter.strategies.fitz.open', return_value=mock_doc):
+            post_response = self.client.post(url, data, format='multipart')
+            status_response = self.client.get(
+                reverse('task_status', kwargs={'task_id': post_response.data['task_id']})
+            )
+
+        self.assertEqual(status_response.data['status'], 'FAILURE', status_response.data)
+        self.assertEqual(status_response.data['error'], 'Документ защищён паролем.')
 
     def test_pdf_to_images_invalid_target(self):
         url = reverse('pdf_to_images')

@@ -7,7 +7,10 @@ from PIL import Image, ImageOps
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
-from pdf2image import convert_from_path, pdfinfo_from_path
+try:
+    import pymupdf as fitz
+except ImportError:
+    import fitz
 from pillow_heif import register_heif_opener
 from reportlab import rl_config
 
@@ -162,45 +165,54 @@ class PdfToImagesConverter(BaseConverter):
 
     def convert(self, input_path: str, output_path: str, **kwargs) -> None:
         target_format = kwargs.get('target_format', 'jpg').lower()
-        poppler_path = kwargs.get('poppler_path', None)
 
         if target_format in ('jpg', 'jpeg'):
-            pil_format = 'JPEG'
             file_ext = 'jpg'
         elif target_format == 'png':
-            pil_format = 'PNG'
             file_ext = 'png'
         elif target_format == 'webp':
-            pil_format = 'WEBP'
             file_ext = 'webp'
         else:
             raise ValueError(f"Формат {target_format} не поддерживается для PDF.")
 
-        page_count = pdfinfo_from_path(input_path, poppler_path=poppler_path)['Pages']
+        try:
+            doc = fitz.open(input_path)
+        except Exception as e:
+            raise ValueError(f"Не удалось открыть PDF-документ: {e}")
+
+        if doc.is_encrypted:
+            doc.close()
+            raise ValueError("Документ защищён паролем.")
+
+        page_count = len(doc)
         if not page_count:
-            raise ValueError('В документе нет страниц.')
+            doc.close()
+            raise ValueError("В документе нет страниц.")
 
-        with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            for first_page in range(1, page_count + 1, PAGE_CHUNK):
-                pages = convert_from_path(
-                    input_path,
-                    poppler_path=poppler_path,
-                    first_page=first_page,
-                    last_page=min(first_page + PAGE_CHUNK - 1, page_count),
-                )
+        try:
+            with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                for page_index in range(page_count):
+                    page = doc.load_page(page_index)
+                    # 200 DPI: стандартное разрешение для качественного отображения страниц
+                    pix = page.get_pixmap(dpi=200)
 
-                for offset, page in enumerate(pages):
-                    img_buffer = io.BytesIO()
-                    if pil_format == 'JPEG':
-                        page.save(img_buffer, format='JPEG', quality=90)
-                    elif pil_format == 'WEBP':
-                        page.save(img_buffer, format='WEBP')
-                    else:
-                        page.save(img_buffer, format='PNG')
+                    if target_format in ('jpg', 'jpeg'):
+                        img_bytes = pix.tobytes("jpg", jpg_quality=90)
+                    elif target_format == 'png':
+                        img_bytes = pix.tobytes("png")
+                    elif target_format == 'webp':
+                        mode = "RGBA" if pix.alpha else "RGB"
+                        img = Image.frombytes(mode, (pix.width, pix.height), pix.samples)
+                        img_buffer = io.BytesIO()
+                        img.save(img_buffer, format="WEBP")
+                        img_bytes = img_buffer.getvalue()
 
-                    index = first_page + offset
-                    zip_file.writestr(f"page_{index}.{file_ext}", img_buffer.getvalue())
-                    page.close()
+                    index = page_index + 1
+                    zip_file.writestr(f"page_{index}.{file_ext}", img_bytes)
+                    pix = None
+                    page = None
+        finally:
+            doc.close()
 
 
 class GenericImageConverter(BaseConverter):

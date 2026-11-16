@@ -8,12 +8,6 @@ ENV PYTHONUNBUFFERED=1
 # директории, а не того места, куда их положил COPY.
 WORKDIR /app
 
-# Устанавливаем системные зависимости (poppler-utils необходим для работы pdf2image на Linux)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    poppler-utils \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
 # Отдельный слой для установки зависимостей для эффективного кэширования Docker
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir --upgrade pip \

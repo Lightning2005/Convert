@@ -249,15 +249,11 @@ TMP_FILE_TTL_SECONDS = int(os.environ.get('TMP_FILE_TTL_SECONDS') or 55 * 60)
 USE_X_ACCEL_REDIRECT = env_bool('USE_X_ACCEL_REDIRECT', False)
 
 # ==============================================================================
-# СПЕЦИФИКА POPPLER (ДЛЯ PDF2IMAGE)
+# НАСТРОЙКИ PDF (PYMUPDF / FITZ)
 # ==============================================================================
-# В Linux (Docker) пакет poppler-utils установлен глобально, путь передавать не нужно.
-# Для Windows требуется скачать бинарники и указать к ним путь: либо через
-# переменную окружения POPPLER_PATH, либо значением по умолчанию ниже.
-if platform.system() == 'Windows':
-    POPPLER_PATH = os.environ.get('POPPLER_PATH') or r'E:\Study\App\poppler-26.02.0\Library\bin'
-else:
-    POPPLER_PATH = None
+# Нарезка PDF выполняется через PyMuPDF (fitz), работающий ин-процесс без
+# внешних утилит poppler. POPPLER_PATH сохранён для обратной совместимости.
+POPPLER_PATH = None
 
 # Django-админка не нужна публичному API, поэтому в проде она открывается
 # отдельно: DJANGO_ENABLE_ADMIN=1.

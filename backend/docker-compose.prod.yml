@@ -33,7 +33,11 @@ services:
   redis:
     image: redis:alpine
     container_name: konvert_redis_prod
-    command: redis-server --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru
+    # volatile-lru вытесняет только ключи с установленным TTL (результаты задач Celery
+    # и кэш Django), защищая постоянные очереди задач брокера от потери при нехватке памяти.
+    # Ограничение maxmemory 128mb оставляет запас под Docker и ОС на сервере с 2 ГБ RAM.
+    command: redis-server --appendonly no --maxmemory 128mb --maxmemory-policy volatile-lru
+    mem_limit: 256m
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -41,6 +45,7 @@ services:
   web:
     build: .
     container_name: konvert_web_prod
+    mem_limit: 512m
     # Миграции и collectstatic перед стартом: образ неизменяем, поэтому статику
     # админки нужно собрать в том при подъёме контейнера.
     # Все строки идут с одним отступом: в folded-скаляре (`>`) перенос строки
@@ -67,6 +72,7 @@ services:
   celery_worker:
     build: .
     container_name: konvert_celery_prod
+    mem_limit: 800m
     # --max-tasks-per-child: Pillow держит растры в памяти, и после серии
     # больших файлов воркер отдаёт их неохотно — процесс перезапускается сам.
     command: celery -A core worker --loglevel=warning --max-tasks-per-child 50
@@ -80,6 +86,7 @@ services:
   celery_beat:
     build: .
     container_name: konvert_beat_prod
+    mem_limit: 128m
     command: celery -A core beat --loglevel=warning --schedule=/tmp/celerybeat-schedule
     volumes:
       - tmp_files:/app/tmp_files

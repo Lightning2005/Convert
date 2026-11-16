@@ -7,6 +7,10 @@ import JSZip from 'jszip';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 const POLL_INTERVAL_MS = 1500;
 const POLL_MAX_ATTEMPTS = 60; // ~90 секунд ожидания
+// Ограничение одновременных запросов: на сервере с 1 vCPU и 3 воркерами Gunicorn
+// батч не должен отправлять десятки тяжёлых multipart-запросов разом.
+const BATCH_UPLOAD_CONCURRENCY = 3;
+const BATCH_DOWNLOAD_CONCURRENCY = 4;
 
 async function postFormData(endpoint, formData, signal) {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -179,14 +183,53 @@ export async function convertImage(file, target, signal) {
 }
 
 /**
- * Общий путь батча: сначала отправляем все файлы, дальше следим за всеми
- * задачами одним пакетным запросом за цикл и скачиваем успевшие.
+ * Выполняет асинхронную функцию для элементов массива с пулом параллелизма.
+ * Возвращает массив результатов аналогично Promise.allSettled в исходном порядке.
+ */
+async function mapConcurrent(items, limit, fn, signal) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      if (signal?.aborted) {
+        const err = signal.reason || new DOMException('Aborted', 'AbortError');
+        while (nextIndex < items.length) {
+          const index = nextIndex++;
+          results[index] = { status: 'rejected', reason: err };
+        }
+        break;
+      }
+      const index = nextIndex++;
+      try {
+        const value = await fn(items[index], index);
+        results[index] = { status: 'fulfilled', value };
+      } catch (reason) {
+        results[index] = { status: 'rejected', reason };
+      }
+    }
+  }
+
+  const workerCount = Math.min(limit, items.length);
+  const workers = Array.from({ length: workerCount }, () => worker());
+  await Promise.all(workers);
+  return results;
+}
+
+/**
+ * Общий путь батча: сначала отправляем все файлы с ограничением параллелизма,
+ * дальше следим за всеми задачами одним пакетным запросом за цикл и скачиваем успевшие.
  */
 async function runBatch(files, { endpoint, makeForm, makeName, unit, emptyError, merge, signal }) {
-  const posted = await Promise.allSettled(files.map(async (file) => {
-    const { task_id } = await postFormData(endpoint, makeForm(file), signal);
-    return { file, task_id };
-  }));
+  const posted = await mapConcurrent(
+    files,
+    BATCH_UPLOAD_CONCURRENCY,
+    async (file) => {
+      const { task_id } = await postFormData(endpoint, makeForm(file), signal);
+      return { file, task_id };
+    },
+    signal,
+  );
   const jobs = posted.filter((r) => r.status === 'fulfilled').map((r) => r.value);
   // Причина отказа есть уже у сервера («изображение слишком большое», «превышен
   // лимит 50 МБ», «слишком много запросов») — если не удалось отправить ни один
@@ -197,12 +240,17 @@ async function runBatch(files, { endpoint, makeForm, makeName, unit, emptyError,
     .find((reason) => reason instanceof Error && reason.name !== 'AbortError');
   const { finished, timedOut } = await pollTasks(jobs.map((job) => job.task_id), { signal });
 
-  const results = await Promise.allSettled(jobs.map(async (job) => {
-    const task = finished.get(job.task_id);
-    if (!task) throw new Error('Задача не вернула результат.');
-    if (task.status !== 'SUCCESS') throw new Error(taskError(task));
-    return { blob: await downloadResult(task, signal), filename: makeName(job.file), warning: task.warning };
-  }));
+  const results = await mapConcurrent(
+    jobs,
+    BATCH_DOWNLOAD_CONCURRENCY,
+    async (job) => {
+      const task = finished.get(job.task_id);
+      if (!task) throw new Error('Задача не вернула результат.');
+      if (task.status !== 'SUCCESS') throw new Error(taskError(task));
+      return { blob: await downloadResult(task, signal), filename: makeName(job.file), warning: task.warning };
+    },
+    signal,
+  );
   const done = results.filter((r) => r.status === 'fulfilled').map((r) => r.value);
 
   const failedCount = files.length - done.length;

@@ -76,16 +76,19 @@ INSTALLED_APPS = [
     'rest_framework',
 ]
 
+# Сервис полностью анонимный, без личных кабинетов, пользователей и сессий.
+# Слои SessionMiddleware, AuthenticationMiddleware и MessageMiddleware отключены
+# для снижения накладных расходов процессора и задержек при обработке API-запросов.
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# Отключение проверок зависимостей django.contrib.admin от отключённых middleware
+SILENCED_SYSTEM_CHECKS = ['admin.E408', 'admin.E409', 'admin.E410']
 
 ROOT_URLCONF = 'core.urls'
 

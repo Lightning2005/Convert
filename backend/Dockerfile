@@ -4,6 +4,11 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
+# curl необходим для Docker healthcheck проверки живости web-сервиса
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # До слоя с зависимостями: pip ищет requirements.txt относительно рабочей
 # директории, а не того места, куда их положил COPY.
 WORKDIR /app

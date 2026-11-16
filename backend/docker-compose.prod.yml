@@ -39,16 +39,20 @@ services:
     # Ограничение maxmemory 128mb оставляет запас под Docker и ОС на сервере с 2 ГБ RAM.
     command: redis-server --appendonly no --maxmemory 128mb --maxmemory-policy volatile-lru
     mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
     volumes:
       - redis_data:/data
     restart: unless-stopped
 
   web:
-    build: .
+    image: ghcr.io/lightning2005/convefy-web:latest
     container_name: konvert_web_prod
     mem_limit: 512m
-    # Миграции и collectstatic перед стартом: образ неизменяем, поэтому статику
-    # админки нужно собрать в том при подъёме контейнера.
+    # Миграции и collectstatic перед стартом: статику админки нужно собрать в том при подъёме контейнера.
     # Все строки идут с одним отступом: в folded-скаляре (`>`) перенос строки
     # сохраняется, если следующая строка отбита глубже первой. При прежнем
     # «красивом» выравнивании gunicorn обрывался на --timeout 120, а
@@ -59,6 +63,12 @@ services:
       && python manage.py collectstatic --noinput
       && gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120
       --access-logfile - --error-logfile -"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/api/status/deploy-check/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -67,11 +77,12 @@ services:
       - ${TMP_FILES_PATH:-/var/www/convert/tmp_files}:/app/tmp_files
     environment: *django-env
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   celery_worker:
-    build: .
+    image: ghcr.io/lightning2005/convefy-web:latest
     container_name: konvert_celery_prod
     mem_limit: 800m
     # --max-tasks-per-child: Pillow держит растры в памяти, и после серии
@@ -81,11 +92,12 @@ services:
       - ${TMP_FILES_PATH:-/var/www/convert/tmp_files}:/app/tmp_files
     environment: *django-env
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   celery_beat:
-    build: .
+    image: ghcr.io/lightning2005/convefy-web:latest
     container_name: konvert_beat_prod
     mem_limit: 128m
     command: celery -A core beat --loglevel=warning --schedule=/tmp/celerybeat-schedule
@@ -93,7 +105,8 @@ services:
       - ${TMP_FILES_PATH:-/var/www/convert/tmp_files}:/app/tmp_files
     environment: *django-env
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

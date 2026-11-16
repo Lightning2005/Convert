@@ -37,6 +37,15 @@ echo "Сервер на $(git rev-parse --short HEAD) — $(git log -1 --pretty=
 cd backend
 docker compose -f "$COMPOSE_FILE" pull --quiet redis || true
 docker compose -f "$COMPOSE_FILE" build web
+
+# Каталог под временные файлы должен существовать до запуска контейнеров:
+# если его создаст сам Docker при bind mount, владельцем станет root:root (755),
+# и контейнер под uid 10001 упадёт с ошибкой converter.E001 при проверке записи.
+TMP_DIR="${TMP_FILES_PATH:-/var/www/convert/tmp_files}"
+mkdir -p "$TMP_DIR"
+chown -R 10001:www-data "$TMP_DIR" 2>/dev/null || true
+chmod 775 "$TMP_DIR" 2>/dev/null || true
+
 docker compose -f "$COMPOSE_FILE" up -d --build
 
 # Миграции применяются внутри контейнера web (см. его command); ждём, пока он

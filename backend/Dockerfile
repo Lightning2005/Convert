@@ -11,7 +11,7 @@ WORKDIR /app
 # Отдельный слой для установки зависимостей для эффективного кэширования Docker
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+    && pip install --no-cache-dir --default-timeout=100 --retries=5 -r requirements.txt
 
 # Непривилегированный пользователь. Веб и воркер читают и пишут только рабочие
 # файлы и базу; права root им не нужны, а без них любой RCE в Pillow или

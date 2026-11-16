@@ -243,6 +243,11 @@ TMP_FILES_DIR = os.environ.get('TMP_FILES_DIR') or str(BASE_DIR / 'tmp_files')
 # бы на файл, которого уже нет, или наоборот молчал о живом.
 TMP_FILE_TTL_SECONDS = int(os.environ.get('TMP_FILE_TTL_SECONDS') or 55 * 60)
 
+# Разгрузка воркеров Gunicorn: отдачу файлов берёт на себя Nginx через заголовок
+# X-Accel-Redirect. В локальной разработке и тестах выключено — файлы отдаёт
+# сам Django через FileResponse.
+USE_X_ACCEL_REDIRECT = env_bool('USE_X_ACCEL_REDIRECT', False)
+
 # ==============================================================================
 # СПЕЦИФИКА POPPLER (ДЛЯ PDF2IMAGE)
 # ==============================================================================

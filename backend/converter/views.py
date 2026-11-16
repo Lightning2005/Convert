@@ -9,7 +9,7 @@ from rest_framework import status
 from django.core.cache import cache
 from django.core.files.storage import FileSystemStorage
 from django.conf import settings  # Добавили импорт настроек
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, HttpResponse
 from django.urls import reverse
 from celery.result import AsyncResult
 from PIL import Image
@@ -346,10 +346,23 @@ class FileDownloadView(APIView):
             raise Http404("Файл не найден или был удален по истечении времени.")
 
         extension = os.path.splitext(clean_filename)[1].lower()
+        content_type = DOWNLOAD_CONTENT_TYPES.get(extension, 'application/octet-stream')
+
+        # Если включена разгрузка воркеров через X-Accel-Redirect (прод за Nginx):
+        # закрываем дескриптор и отдаём пустой ответ с заголовком перенаправления.
+        # Воркер Gunicorn мгновенно освобождается, а отдачей файла занимается Nginx
+        # через системный вызов sendfile ядра.
+        if getattr(settings, 'USE_X_ACCEL_REDIRECT', False):
+            file_handle.close()
+            response = HttpResponse(content_type=content_type)
+            response['X-Accel-Redirect'] = f'/internal_tmp/{clean_filename}'
+            response['Content-Disposition'] = f'attachment; filename="{clean_filename}"'
+            return response
+
         response = FileResponse(
             file_handle,
             as_attachment=True,
             filename=clean_filename,
-            content_type=DOWNLOAD_CONTENT_TYPES.get(extension),
+            content_type=content_type,
         )
         return response

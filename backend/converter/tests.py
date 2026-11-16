@@ -755,6 +755,23 @@ class TaskSystemAPITestCase(ConverterAPITestBase):
 
         self.assertEqual(response.status_code, 404)
 
+    @override_settings(USE_X_ACCEL_REDIRECT=True)
+    def test_download_uses_x_accel_redirect_when_enabled(self):
+        """При включённом USE_X_ACCEL_REDIRECT Django возвращает 200 с X-Accel-Redirect."""
+        filename = f'ready_{uuid.uuid4().hex}.pdf'
+        file_path = os.path.join(tmp_dir(), filename)
+        with open(file_path, 'wb') as f:
+            f.write(b'%PDF-1.4 test')
+        self.addCleanup(self.remove_quietly, file_path)
+
+        url = reverse('file_download', kwargs={'filename': filename})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['X-Accel-Redirect'], f'/internal_tmp/{filename}')
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertIn(filename, response['Content-Disposition'])
+
     def submit_conversion(self, **data):
         response = self.client.post(reverse('generic_convert'), data, format='multipart')
         self.assertEqual(response.status_code, 202, response.data)

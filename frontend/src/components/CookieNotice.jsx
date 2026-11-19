@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 const STORAGE_KEY = 'cookie-notice-accepted';
 
@@ -9,6 +9,7 @@ const STORAGE_KEY = 'cookie-notice-accepted';
  */
 export default function CookieNotice() {
   const [visible, setVisible] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     // localStorage есть только в браузере: решение о показе принимается после
@@ -18,7 +19,8 @@ export default function CookieNotice() {
     if (localStorage.getItem(STORAGE_KEY) !== '1') setVisible(true);
   }, []);
 
-  if (!visible) return null;
+  // Не показываем плашку, если согласие уже дано или если пользователь уже на странице политики
+  if (!visible || location.pathname.startsWith('/privacy')) return null;
 
   const accept = () => {
     localStorage.setItem(STORAGE_KEY, '1');
@@ -33,8 +35,7 @@ export default function CookieNotice() {
     >
       <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center gap-3">
         <p className="text-xs text-text-secondary leading-relaxed flex-1">
-          Мы используем файлы cookie: для статистики посещений (Яндекс.Метрика) и, когда площадка
-          одобрена, для показа рекламы Рекламной сети Яндекса.
+          Мы используем файлы cookie для анализа посещаемости (Яндекс.Метрика) и персонализации рекламы (Рекламная сеть Яндекса).
           Продолжая пользоваться сайтом, вы соглашаетесь с{' '}
           <Link to="/privacy" className="text-primary font-medium hover:underline">
             Политикой конфиденциальности
@@ -44,9 +45,9 @@ export default function CookieNotice() {
         <button
           type="button"
           onClick={accept}
-          className="shrink-0 min-h-11 inline-flex items-center justify-center bg-primary hover:bg-primary-hover active:bg-primary-active text-white text-sm font-bold px-5 py-2 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="shrink-0 min-h-11 inline-flex items-center justify-center bg-primary hover:bg-primary-hover active:bg-primary-active text-white text-sm font-bold px-5 py-2 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary cursor-pointer"
         >
-          Понятно
+          Принять
         </button>
       </div>
     </div>
